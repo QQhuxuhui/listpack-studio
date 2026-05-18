@@ -1,0 +1,34 @@
+{
+  "name": "listpack-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cross-border e-commerce listing pack AI Agent",
+  "packageManager": "pnpm@10.14.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean && rm -rf node_modules .turbo",
+    "agent:dev": "cd apps/agent && uv run uvicorn server:app --reload --port 8000",
+    "agent:install": "cd apps/agent && uv sync"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "esbuild",
+      "sharp",
+      "bcrypt",
+      "bcryptjs"
+    ]
+  }
+}

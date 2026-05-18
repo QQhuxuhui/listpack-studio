@@ -1,0 +1,5 @@
+packages:
+  - "apps/web"
+  - "packages/*"
+
+# Note: apps/agent is Python (managed by uv), not part of pnpm workspace
