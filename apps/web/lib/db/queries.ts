@@ -1,27 +1,30 @@
-import { desc, and, eq, isNull } from 'drizzle-orm';
-import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users } from './schema';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
+import { db } from './drizzle';
+import {
+  activityLogs,
+  members,
+  subscriptions,
+  users,
+  workspaces,
+  type Subscription,
+  type WorkspaceWithMembers,
+} from './schema';
 
 export async function getUser() {
   const sessionCookie = (await cookies()).get('session');
-  if (!sessionCookie || !sessionCookie.value) {
-    return null;
-  }
+  if (!sessionCookie?.value) return null;
 
   const sessionData = await verifyToken(sessionCookie.value);
   if (
     !sessionData ||
     !sessionData.user ||
-    typeof sessionData.user.id !== 'number'
+    typeof sessionData.user.id !== 'string'
   ) {
     return null;
   }
-
-  if (new Date(sessionData.expires) < new Date()) {
-    return null;
-  }
+  if (new Date(sessionData.expires) < new Date()) return null;
 
   const user = await db
     .select()
@@ -29,49 +32,57 @@ export async function getUser() {
     .where(and(eq(users.id, sessionData.user.id), isNull(users.deletedAt)))
     .limit(1);
 
-  if (user.length === 0) {
-    return null;
-  }
-
-  return user[0];
+  return user[0] ?? null;
 }
 
-export async function getTeamByStripeCustomerId(customerId: string) {
+/**
+ * Locate a subscription (and its workspace) by Stripe customer id.
+ * Returns null if not found. Stripe linkage now lives on subscriptions, not workspaces.
+ */
+export async function getSubscriptionByStripeCustomerId(customerId: string) {
   const result = await db
     .select()
-    .from(teams)
-    .where(eq(teams.stripeCustomerId, customerId))
+    .from(subscriptions)
+    .where(eq(subscriptions.stripeCustomerId, customerId))
     .limit(1);
 
-  return result.length > 0 ? result[0] : null;
+  return result[0] ?? null;
 }
 
-export async function updateTeamSubscription(
-  teamId: number,
-  subscriptionData: {
-    stripeSubscriptionId: string | null;
-    stripeProductId: string | null;
-    planName: string | null;
-    subscriptionStatus: string;
-  }
+export async function updateSubscription(
+  subscriptionId: string,
+  data: Partial<
+    Pick<
+      Subscription,
+      | 'plan'
+      | 'status'
+      | 'stripeSubscriptionId'
+      | 'stripeProductId'
+      | 'currentPeriodStart'
+      | 'currentPeriodEnd'
+    >
+  >,
 ) {
   await db
-    .update(teams)
-    .set({
-      ...subscriptionData,
-      updatedAt: new Date()
-    })
-    .where(eq(teams.id, teamId));
+    .update(subscriptions)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(subscriptions.id, subscriptionId));
 }
 
-export async function getUserWithTeam(userId: number) {
+/**
+ * Return the user's primary workspace membership.
+ * For v1, each user has exactly one workspace (created at signup).
+ * v2+: returns the most-recently-joined workspace.
+ */
+export async function getUserWithWorkspace(userId: string) {
   const result = await db
     .select({
       user: users,
-      teamId: teamMembers.teamId
+      workspaceId: members.workspaceId,
+      role: members.role,
     })
     .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
+    .leftJoin(members, eq(users.id, members.userId))
     .where(eq(users.id, userId))
     .limit(1);
 
@@ -80,17 +91,15 @@ export async function getUserWithTeam(userId: number) {
 
 export async function getActivityLogs() {
   const user = await getUser();
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
+  if (!user) throw new Error('User not authenticated');
 
-  return await db
+  return db
     .select({
       id: activityLogs.id,
       action: activityLogs.action,
       timestamp: activityLogs.timestamp,
       ipAddress: activityLogs.ipAddress,
-      userName: users.name
+      userName: users.name,
     })
     .from(activityLogs)
     .leftJoin(users, eq(activityLogs.userId, users.id))
@@ -99,32 +108,36 @@ export async function getActivityLogs() {
     .limit(10);
 }
 
-export async function getTeamForUser() {
+/**
+ * Workspace with members + subscription for the current session user.
+ * Powers the dashboard `/api/workspace` endpoint.
+ */
+export async function getWorkspaceForUser(): Promise<WorkspaceWithMembers | null> {
   const user = await getUser();
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
-  const result = await db.query.teamMembers.findFirst({
-    where: eq(teamMembers.userId, user.id),
+  const result = await db.query.members.findFirst({
+    where: eq(members.userId, user.id),
     with: {
-      team: {
+      workspace: {
         with: {
-          teamMembers: {
+          members: {
             with: {
               user: {
-                columns: {
-                  id: true,
-                  name: true,
-                  email: true
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+                columns: { id: true, name: true, email: true },
+              },
+            },
+          },
+          subscription: true,
+        },
+      },
+    },
   });
 
-  return result?.team || null;
+  if (!result?.workspace) return null;
+
+  // `with` does not type-narrow `subscription` to nullable Subscription cleanly,
+  // so we coerce here. `subscription` is a one-to-one optional relation.
+  const ws = result.workspace as unknown as WorkspaceWithMembers;
+  return ws;
 }

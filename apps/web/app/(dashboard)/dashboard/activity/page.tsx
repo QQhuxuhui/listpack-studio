@@ -1,14 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Settings,
-  LogOut,
-  UserPlus,
-  Lock,
-  UserCog,
   AlertCircle,
-  UserMinus,
-  Mail,
   CheckCircle,
+  ImagePlus,
+  Lock,
+  LogOut,
+  Mail,
+  Settings,
+  ShieldAlert,
+  Truck,
+  UserCog,
+  UserMinus,
+  UserPlus,
   type LucideIcon,
 } from 'lucide-react';
 import { ActivityType } from '@/lib/db/schema';
@@ -21,10 +24,13 @@ const iconMap: Record<ActivityType, LucideIcon> = {
   [ActivityType.UPDATE_PASSWORD]: Lock,
   [ActivityType.DELETE_ACCOUNT]: UserMinus,
   [ActivityType.UPDATE_ACCOUNT]: Settings,
-  [ActivityType.CREATE_TEAM]: UserPlus,
-  [ActivityType.REMOVE_TEAM_MEMBER]: UserMinus,
-  [ActivityType.INVITE_TEAM_MEMBER]: Mail,
+  [ActivityType.CREATE_WORKSPACE]: UserPlus,
+  [ActivityType.REMOVE_WORKSPACE_MEMBER]: UserMinus,
+  [ActivityType.INVITE_WORKSPACE_MEMBER]: Mail,
   [ActivityType.ACCEPT_INVITATION]: CheckCircle,
+  [ActivityType.CREATE_LISTING_PACK]: ImagePlus,
+  [ActivityType.PUBLISH_TO_PLATFORM]: Truck,
+  [ActivityType.COMPLIANCE_CHECK]: ShieldAlert,
 };
 
 function getRelativeTime(date: Date) {
@@ -55,14 +61,20 @@ function formatAction(action: ActivityType): string {
       return 'You deleted your account';
     case ActivityType.UPDATE_ACCOUNT:
       return 'You updated your account';
-    case ActivityType.CREATE_TEAM:
-      return 'You created a new team';
-    case ActivityType.REMOVE_TEAM_MEMBER:
-      return 'You removed a team member';
-    case ActivityType.INVITE_TEAM_MEMBER:
-      return 'You invited a team member';
+    case ActivityType.CREATE_WORKSPACE:
+      return 'You created a new workspace';
+    case ActivityType.REMOVE_WORKSPACE_MEMBER:
+      return 'You removed a workspace member';
+    case ActivityType.INVITE_WORKSPACE_MEMBER:
+      return 'You invited a workspace member';
     case ActivityType.ACCEPT_INVITATION:
       return 'You accepted an invitation';
+    case ActivityType.CREATE_LISTING_PACK:
+      return 'You created a listing pack';
+    case ActivityType.PUBLISH_TO_PLATFORM:
+      return 'You published to a platform';
+    case ActivityType.COMPLIANCE_CHECK:
+      return 'You ran a compliance check';
     default:
       return 'Unknown action occurred';
   }
@@ -84,10 +96,8 @@ export default async function ActivityPage() {
           {logs.length > 0 ? (
             <ul className="space-y-4">
               {logs.map((log) => {
-                const Icon = iconMap[log.action as ActivityType] || Settings;
-                const formattedAction = formatAction(
-                  log.action as ActivityType
-                );
+                const Icon = iconMap[log.action as ActivityType] ?? Settings;
+                const formattedAction = formatAction(log.action as ActivityType);
 
                 return (
                   <li key={log.id} className="flex items-center space-x-4">
