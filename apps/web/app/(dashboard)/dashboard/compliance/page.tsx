@@ -1,0 +1,341 @@
+'use client';
+
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { AlertCircle, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+type Platform = 'amazon' | 'shopify' | 'ebay' | 'temu' | 'shein';
+
+type RuleResult = {
+  rule_key: string;
+  severity: 'block' | 'warn' | 'info';
+  passed: boolean;
+  evidence: Record<string, unknown>;
+  display_title: { en: string; zh?: string };
+  display_message: { en: string; zh?: string };
+  fix_action: string | null;
+  source_url: string | null;
+};
+
+type ComplianceReport = {
+  target_platform: Platform;
+  target_category: string | null;
+  overall: 'pass' | 'warn' | 'fail';
+  rule_results: RuleResult[];
+  fix_suggestions: Array<Record<string, unknown>>;
+  rule_set_version: number;
+};
+
+const PLATFORMS: Platform[] = ['amazon', 'shopify', 'ebay', 'temu', 'shein'];
+const CATEGORIES = [
+  '',
+  'apparel',
+  'cosmetics',
+  'food',
+  'kids_toys',
+  'pet_supplements',
+  'supplements',
+];
+
+export default function CompliancePage() {
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<Platform>('amazon');
+  const [category, setCategory] = useState<string>('');
+  const [report, setReport] = useState<ComplianceReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    setReport(null);
+    setError(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(f ? URL.createObjectURL(f) : null);
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!file) return;
+    setPending(true);
+    setError(null);
+    setReport(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('target_platform', platform);
+      if (category) fd.append('target_category', category);
+
+      const res = await fetch('/api/agent/compliance/check', {
+        method: 'POST',
+        body: fd,
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body?.error?.message ?? `HTTP ${res.status}`);
+      } else {
+        setReport(body as ComplianceReport);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'request failed');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const grouped = useMemo(() => {
+    if (!report) return { failed: [], warn: [], passed: [] };
+    return report.rule_results.reduce(
+      (acc, r) => {
+        if (!r.passed) {
+          if (r.severity === 'block') acc.failed.push(r);
+          else acc.warn.push(r);
+        } else acc.passed.push(r);
+        return acc;
+      },
+      { failed: [] as RuleResult[], warn: [] as RuleResult[], passed: [] as RuleResult[] },
+    );
+  }, [report]);
+
+  return (
+    <section className="flex-1 p-4 lg:p-8 space-y-6">
+      <header>
+        <h1 className="text-lg lg:text-2xl font-medium">Compliance Check</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Upload a product image, pick a target platform + category, and see
+          every rule it would trip on Amazon / Shopify / Temu / SHEIN / eBay before
+          the marketplace ever sees it.
+        </p>
+      </header>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="file">Image (JPEG / PNG / WebP, max 20 MB)</Label>
+              <Input
+                ref={fileInputRef}
+                id="file"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/tiff,image/gif"
+                onChange={onFileChange}
+                disabled={pending}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="platform">Target platform</Label>
+                <select
+                  id="platform"
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value as Platform)}
+                  disabled={pending}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {PLATFORMS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="category">Category (optional)</Label>
+                <select
+                  id="category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  disabled={pending}
+                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c || '(none)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {previewUrl && (
+              <div className="mt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl}
+                  alt="preview"
+                  className="max-h-64 rounded border border-gray-200"
+                />
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={pending || !file}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {pending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Checking…
+                </>
+              ) : (
+                'Run compliance check'
+              )}
+            </Button>
+            {error && (
+              <p className="text-sm text-red-500">{error}</p>
+            )}
+          </form>
+        </CardContent>
+      </Card>
+
+      {report && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {report.overall === 'pass' ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Pass
+                </>
+              ) : report.overall === 'warn' ? (
+                <>
+                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                  Warnings
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="h-5 w-5 text-red-500" />
+                  Will be rejected
+                </>
+              )}
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                {report.target_platform}
+                {report.target_category && ` · ${report.target_category}`} · rule
+                set v{report.rule_set_version}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {grouped.failed.length > 0 && (
+              <Section
+                title={`Blocking failures (${grouped.failed.length})`}
+                colour="red"
+                rules={grouped.failed}
+              />
+            )}
+            {grouped.warn.length > 0 && (
+              <Section
+                title={`Warnings (${grouped.warn.length})`}
+                colour="amber"
+                rules={grouped.warn}
+              />
+            )}
+            <Section
+              title={`Passed (${grouped.passed.length})`}
+              colour="green"
+              rules={grouped.passed}
+              collapsedByDefault
+            />
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function Section({
+  title,
+  rules,
+  colour,
+  collapsedByDefault = false,
+}: {
+  title: string;
+  rules: RuleResult[];
+  colour: 'red' | 'amber' | 'green';
+  collapsedByDefault?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(!collapsedByDefault);
+  const accent =
+    colour === 'red'
+      ? 'border-red-300 bg-red-50'
+      : colour === 'amber'
+      ? 'border-amber-300 bg-amber-50'
+      : 'border-green-300 bg-green-50';
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="text-sm font-semibold text-gray-800 mb-2 hover:text-orange-600"
+      >
+        {expanded ? '▾' : '▸'} {title}
+      </button>
+      {expanded && (
+        <ul className="space-y-2">
+          {rules.map((r) => (
+            <li
+              key={r.rule_key}
+              className={`border ${accent} rounded p-3 text-sm`}
+            >
+              <div className="flex items-baseline justify-between gap-4">
+                <strong>{r.display_title.zh || r.display_title.en}</strong>
+                <code className="text-xs text-muted-foreground">{r.rule_key}</code>
+              </div>
+              <p className="text-muted-foreground mt-1">
+                {r.display_message.zh || r.display_message.en}
+              </p>
+              {r.fix_action && (
+                <p className="text-xs mt-2">
+                  <span className="font-medium">Auto-fix:</span>{' '}
+                  <code>{r.fix_action}</code>
+                </p>
+              )}
+              {!r.passed && (
+                <details className="mt-2">
+                  <summary className="text-xs text-muted-foreground cursor-pointer">
+                    Evidence
+                  </summary>
+                  <pre className="text-xs bg-white border border-gray-200 rounded p-2 mt-1 overflow-auto max-h-48">
+                    {JSON.stringify(r.evidence, null, 2)}
+                  </pre>
+                </details>
+              )}
+              {r.source_url && (
+                <a
+                  href={r.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-orange-600 hover:underline mt-2 inline-block"
+                >
+                  Source policy →
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

@@ -1,29 +1,50 @@
 """ListPack agent service — FastAPI entry point.
 
 Endpoints:
-- GET  /health                        liveness probe
-- POST /v1/hello                      one-shot hello (returns final state)
-- GET  /v1/hello/stream               SSE-streamed hello (Painter-Commenter UX pattern)
+- GET  /health                               liveness probe
+- POST /v1/hello                             one-shot hello demo
+- GET  /v1/hello/stream                      SSE hello demo (D3)
+- POST /v1/compliance/check                  multipart image upload → ComplianceReport (D10)
+- GET  /v1/compliance/rules                  list active rules in DB
+- POST /v1/compliance/rules/reload           bust in-process rule cache
 
-The streaming pattern here is the template for all real agent endpoints:
-SSE with event/data lines, EventSource-friendly, no WebSocket dependency.
+Streaming uses SSE; one-shot calls return JSON.
 """
 
+from __future__ import annotations
+
 import json
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from compliance.engine import run_compliance_check
+from compliance.loader import (
+    list_all_active_rules,
+    load_active_rules,
+    reload_rules,
+)
+from compliance.schemas import ComplianceReport
 from graphs.hello import build_graph
 
 load_dotenv()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 AGENT_SERVICE_TOKEN = os.environ.get("AGENT_SERVICE_TOKEN", "")
+
+# Match `platformEnum` in apps/web/lib/db/schema.ts
+PlatformLiteral = Literal["amazon", "shopify", "ebay", "temu", "shein"]
 
 
 @asynccontextmanager
@@ -53,6 +74,7 @@ def require_service_token(request: Request) -> None:
         raise HTTPException(status_code=401, detail="invalid service token")
 
 
+# ───────────────────────────────────────────────────────── health
 class HelloRequest(BaseModel):
     message: str
 
@@ -62,21 +84,16 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "listpack-agent", "version": "0.1.0"}
 
 
+# ───────────────────────────────────────────────────────── hello (D3)
 @app.post("/v1/hello")
 async def hello_oneshot(req: HelloRequest, request: Request) -> dict:
-    """One-shot run: returns final state."""
     require_service_token(request)
     graph = request.app.state.hello_graph
-    result = await graph.ainvoke({"message": req.message, "plan": [], "response": ""})
-    return result
+    return await graph.ainvoke({"message": req.message, "plan": [], "response": ""})
 
 
 @app.get("/v1/hello/stream")
 async def hello_stream(message: str, request: Request) -> EventSourceResponse:
-    """SSE stream: emits each step's state as a `step` event.
-
-    Matches the streaming pattern described in PRD 01 § 4.3.
-    """
     require_service_token(request)
     graph = request.app.state.hello_graph
     run_id = str(uuid.uuid4())
@@ -89,7 +106,6 @@ async def hello_stream(message: str, request: Request) -> EventSourceResponse:
         async for event in graph.astream(
             {"message": message, "plan": [], "response": ""}, stream_mode="updates"
         ):
-            # event is dict keyed by node name -> node output
             for node, output in event.items():
                 yield {
                     "event": "step.completed",
@@ -100,6 +116,100 @@ async def hello_stream(message: str, request: Request) -> EventSourceResponse:
     return EventSourceResponse(event_generator())
 
 
+# ───────────────────────────────────────────────────────── compliance (D10)
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB, matches PRD § 01 § 2.1 upload cap
+
+ALLOWED_UPLOAD_MIMES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/tiff",
+    "image/heic",
+    "image/gif",
+}
+
+
+@app.post("/v1/compliance/check", response_model=ComplianceReport)
+async def compliance_check(
+    request: Request,
+    file: Annotated[UploadFile, File(description="Image to check")],
+    target_platform: Annotated[PlatformLiteral, Form()],
+    target_category: Annotated[str | None, Form()] = None,
+) -> ComplianceReport:
+    """Run all active rules for (platform, category) against an uploaded image.
+
+    Does NOT consume the workspace's SKU quota (PRD § 01 § 4.2 — checks are
+    free; only successful auto-fix or generation consumes SKUs).
+    """
+    require_service_token(request)
+
+    mime = (file.content_type or "").lower()
+    if mime and mime not in ALLOWED_UPLOAD_MIMES:
+        raise HTTPException(415, f"unsupported media type: {mime}")
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(400, "empty upload")
+    if len(image_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            413,
+            f"file too large: {len(image_bytes)} bytes > limit {MAX_UPLOAD_BYTES}",
+        )
+
+    # Both load_active_rules (DB I/O) and run_compliance_check (CV inference)
+    # are sync, sometimes slow (PaddleOCR / DETR). Run on the FastAPI threadpool
+    # so the event loop stays responsive.
+    rules = await run_in_threadpool(
+        load_active_rules, target_platform, target_category
+    )
+    report = await run_in_threadpool(
+        run_compliance_check,
+        image_bytes,
+        mime or "image/jpeg",
+        rules,
+        target_platform=target_platform,
+        target_category=target_category,
+        rule_set_version=1,
+    )
+    return report
+
+
+@app.get("/v1/compliance/rules")
+async def list_rules(request: Request) -> dict:
+    """List all active rules in DB, grouped by platform.
+
+    Intended for admin debugging / docs. Not paginated — there's < 1000 rules.
+    """
+    require_service_token(request)
+
+    by_platform: dict[str, list[dict]] = {}
+    for rule in await run_in_threadpool(lambda: list(list_all_active_rules())):
+        by_platform.setdefault(rule.platform, []).append(
+            {
+                "rule_key": rule.rule_key,
+                "applies_to_slot": rule.applies_to_slot,
+                "applies_to_category": rule.applies_to_category,
+                "detector_type": rule.detector_type,
+                "severity": rule.severity.value,
+                "version": rule.version,
+                "title_en": rule.display_title.get("en"),
+                "title_zh": rule.display_title.get("zh"),
+            }
+        )
+    total = sum(len(v) for v in by_platform.values())
+    return {"total": total, "by_platform": by_platform}
+
+
+@app.post("/v1/compliance/rules/reload")
+async def reload_rules_endpoint(request: Request) -> dict:
+    """Drop the in-process rule cache; next check re-reads from DB."""
+    require_service_token(request)
+    reload_rules()
+    return {"reloaded": True}
+
+
+# ───────────────────────────────────────────────────────── main
 if __name__ == "__main__":
     import uvicorn
 
