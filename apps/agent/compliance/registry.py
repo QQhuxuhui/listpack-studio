@@ -54,6 +54,8 @@ def _autoload() -> None:
         file_format,
         file_size,
         halo_edge,
+        object_count,
+        person_in_image,
         pixel_dimension,
         product_fill_ratio,
         shadow_intensity,

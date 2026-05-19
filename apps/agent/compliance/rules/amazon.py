@@ -189,6 +189,51 @@ RULES: list[RuleSpec] = [
         source_url="https://sellercentral.amazon.com/help/hub/reference/external/G1881",
     ),
     RuleSpec(
+        rule_key="amazon.main_image.no_person",
+        platform="amazon",
+        applies_to_slot="main",
+        detector_type="person_in_image",
+        spec={"allowed": False, "min_confidence": 0.6},
+        severity=RuleSeverity.block,
+        # No safe auto-fix — re-shooting without the model is the only path.
+        auto_fix=None,
+        display_title={
+            "en": "Person / model / hand detected",
+            "zh": "检测到人 / 模特 / 手",
+        },
+        display_message={
+            "en": "Amazon main images must show the product alone — no people, "
+            "hands, mascots, or body parts.",
+            "zh": "Amazon 主图只允许商品本身，禁止人物 / 模特 / 手部 / 吉祥物。",
+        },
+        fix_cta={"en": "Re-shoot without model", "zh": "重新拍摄,无人物"},
+        source_url="https://sellercentral.amazon.com/help/hub/reference/external/G1881",
+    ),
+    RuleSpec(
+        rule_key="amazon.main_image.single_product",
+        platform="amazon",
+        applies_to_slot="main",
+        detector_type="object_count",
+        spec={
+            "max_count": 1,
+            "class_exclude": ["person"],  # paired with no_person rule
+            "min_confidence": 0.7,
+        },
+        severity=RuleSeverity.block,
+        auto_fix=None,
+        display_title={
+            "en": "Multiple objects / props detected",
+            "zh": "检测到多商品 / 道具",
+        },
+        display_message={
+            "en": "Amazon main images must show one product only — no accessories, "
+            "props, or grouped items.",
+            "zh": "Amazon 主图只允许单一商品，禁止配件 / 道具 / 多件组合。",
+        },
+        fix_cta={"en": "Re-shoot as single product", "zh": "重拍仅单一商品"},
+        source_url="https://sellercentral.amazon.com/help/hub/reference/external/G1881",
+    ),
+    RuleSpec(
         rule_key="amazon.main_image.no_text",
         platform="amazon",
         applies_to_slot="main",

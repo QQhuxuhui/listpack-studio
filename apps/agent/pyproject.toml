@@ -20,7 +20,24 @@ dependencies = [
     "opencv-python-headless>=4.10.0",
     "paddleocr>=2.7.0,<3.0",
     "paddlepaddle>=2.6.0",
+    "transformers>=4.45.0",
+    "torch>=2.4.0,<3.0",
+    "torchvision>=0.19.0,<1.0",
+    "timm>=1.0.0",
 ]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "platform_system != 'Darwin'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", marker = "platform_system != 'Darwin'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [
