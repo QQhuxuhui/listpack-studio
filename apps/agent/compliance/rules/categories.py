@@ -100,4 +100,61 @@ RULES: list[RuleSpec] = [
         },
         source_url="https://www.fda.gov/food/food-labeling-nutrition",
     ),
+
+    # ── Kids' toys (CPSIA) ────────────────────────────────────────
+    RuleSpec(
+        rule_key="category.kids_toys.no_choking_hazard_implications",
+        platform="global",
+        applies_to_slot="any",
+        applies_to_category=["kids_toys"],
+        detector_type="category_forbidden_text",
+        spec={
+            "keywords": [
+                # Phrases that imply suitability for infants when product isn't tested
+                "newborn safe", "baby safe", "infant friendly",
+                "婴儿安全", "新生儿适用",
+            ],
+            "min_confidence": 0.6,
+        },
+        severity=RuleSeverity.block,
+        display_title={
+            "en": "Infant-safety claim without certification",
+            "zh": "未经认证的婴幼儿安全声明",
+        },
+        display_message={
+            "en": "CPSIA forbids unqualified infant-safety claims. Use age-graded "
+            "language matched to your test report (e.g. 'Ages 3+').",
+            "zh": "CPSIA 禁止未经测试的婴幼儿安全声明; 请用与测试报告一致的年龄分级 "
+            "用语 (如「适用 3 岁以上」)。",
+        },
+        source_url="https://www.cpsc.gov/Business--Manufacturing/Business-Education/childrens-products",
+    ),
+
+    # ── Pet supplements ────────────────────────────────────────────
+    RuleSpec(
+        rule_key="category.pet_supplements.no_medical_claims",
+        platform="global",
+        applies_to_slot="any",
+        applies_to_category=["pet_supplements"],
+        detector_type="category_forbidden_text",
+        spec={
+            "keywords": [
+                "cure", "treats joint pain", "treats arthritis",
+                "treats anxiety", "treats allergy",
+                "治疗关节炎", "治疗焦虑",
+            ],
+            "min_confidence": 0.6,
+        },
+        severity=RuleSeverity.block,
+        display_title={
+            "en": "Pet supplement implies medical efficacy",
+            "zh": "宠物保健品图含医疗效果暗示",
+        },
+        display_message={
+            "en": "FDA classifies pet products with medical claims as veterinary "
+            "drugs, requiring approval. Use wellness language only.",
+            "zh": "宠物用品图若含医疗效果暗示, FDA 视为兽药需要审批; 请用保健话术。",
+        },
+        source_url="https://www.fda.gov/animal-veterinary/animal-health-literacy",
+    ),
 ]
