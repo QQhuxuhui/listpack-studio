@@ -16,6 +16,7 @@ Public entry: `compliance.engine.run_compliance_check(...)`.
 """
 
 from .engine import run_compliance_check
+from .fixers import fixer_registry, register_fixer
 from .registry import detector_registry, register_detector
 from .schemas import (
     ComplianceReport,
@@ -36,6 +37,8 @@ __all__ = [
     "RuleSeverity",
     "RuleSpec",
     "detector_registry",
+    "fixer_registry",
     "register_detector",
+    "register_fixer",
     "run_compliance_check",
 ]

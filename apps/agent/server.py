@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from compliance.engine import run_compliance_check
+from compliance.fixers import fixer_registry
 from compliance.loader import (
     list_all_active_rules,
     load_active_rules,
@@ -207,6 +208,73 @@ async def reload_rules_endpoint(request: Request) -> dict:
     require_service_token(request)
     reload_rules()
     return {"reloaded": True}
+
+
+@app.post("/v1/compliance/auto-fix")
+async def compliance_auto_fix(
+    request: Request,
+    file: Annotated[UploadFile, File(description="Image to fix")],
+    actions: Annotated[str, Form(description="JSON array of {type, spec} actions")],
+) -> dict:
+    """Apply one or more auto-fix actions in sequence.
+
+    Body is multipart so the image streams. `actions` is a JSON-encoded
+    array of `{type: str, spec: dict}` objects matching the `auto_fix`
+    blobs from ComplianceReport. Actions are applied in order, each
+    feeding the next.
+
+    Consumes 1 SKU from the caller's quota (PRD § 01 § 4.2). For now we
+    apply that cap at the web proxy layer; D11+ will move metering here
+    once UsageRecord writes are wired in.
+    """
+    require_service_token(request)
+
+    mime = (file.content_type or "").lower()
+    if mime and mime not in ALLOWED_UPLOAD_MIMES:
+        raise HTTPException(415, f"unsupported media type: {mime}")
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(400, "empty upload")
+    if len(image_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"file too large: {len(image_bytes)} bytes")
+
+    try:
+        action_list = json.loads(actions)
+        assert isinstance(action_list, list)
+    except (json.JSONDecodeError, AssertionError) as exc:
+        raise HTTPException(400, f"actions must be a JSON array: {exc}") from exc
+
+    current_bytes = image_bytes
+    current_mime = mime or "image/jpeg"
+    applied: list[dict] = []
+
+    for i, action in enumerate(action_list):
+        if not isinstance(action, dict) or "type" not in action:
+            raise HTTPException(400, f"action[{i}] must be {{type, spec}}")
+        fix_type = action["type"]
+        spec = action.get("spec", {})
+
+        fixer = fixer_registry.get(fix_type)
+        if fixer is None:
+            raise HTTPException(
+                400, f"unknown fixer: {fix_type!r} (known: {sorted(fixer_registry)})"
+            )
+
+        # Each fixer is CPU-bound (Pillow / numpy); use threadpool.
+        result = await run_in_threadpool(fixer, current_bytes, current_mime, spec)
+        current_bytes = result.bytes_out
+        current_mime = result.mime_out
+        applied.append({"type": fix_type, "metadata": result.metadata})
+
+    import base64
+
+    return {
+        "image_base64": base64.b64encode(current_bytes).decode("ascii"),
+        "mime": current_mime,
+        "size_bytes": len(current_bytes),
+        "applied": applied,
+    }
 
 
 # ───────────────────────────────────────────────────────── main
