@@ -48,10 +48,14 @@ def _autoload() -> None:
     # Detectors
     from .detectors import (  # noqa: F401
         background_color,
+        border_detection,
         color_space,
         file_format,
         file_size,
+        halo_edge,
         pixel_dimension,
+        product_fill_ratio,
+        shadow_intensity,
     )
 
 

@@ -153,8 +153,20 @@ def test_background_color_fail_offwhite(make_image):
 # ── engine: full Amazon rule set ─────────────────────────────────────
 
 
-def test_engine_full_amazon_pass(make_image):
-    """Compliant image: 2000×2000, white BG, JPEG, RGB, well under 10MB."""
+D4_RULE_KEYS = {
+    "amazon.main_image.dimension_min",
+    "amazon.main_image.dimension_max",
+    "amazon.main_image.file_size_max",
+    "amazon.main_image.format",
+    "amazon.main_image.color_space",
+    "amazon.main_image.background_white",
+}
+
+
+def test_engine_full_amazon_d4_pass(make_image):
+    """Compliant image against D4 rules only (D5-D6 product_fill_ratio etc.
+    is exercised in test_pixel_detectors.test_engine_full_amazon_v2_pass).
+    """
     img, mime = make_image(
         width=2000, height=2000,
         background=(255, 255, 255),
@@ -162,8 +174,9 @@ def test_engine_full_amazon_pass(make_image):
         format="JPEG",
         quality=85,
     )
+    rules = [r for r in AMAZON_RULES if r.rule_key in D4_RULE_KEYS]
     report = run_compliance_check(
-        img, mime, AMAZON_RULES, target_platform="amazon",
+        img, mime, rules, target_platform="amazon",
     )
     failed = [r for r in report.rule_results if not r.passed]
     assert report.overall is OverallStatus.pass_, (
