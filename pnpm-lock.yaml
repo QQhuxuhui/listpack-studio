@@ -20,6 +20,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@listpack/shared-schemas':
+        specifier: workspace:*
+        version: link:../../packages/shared-schemas
       '@tailwindcss/postcss':
         specifier: 4.1.7
         version: 4.1.7
@@ -104,6 +107,16 @@ importers:
       zod:
         specifier: ^3.24.4
         version: 3.25.76
+
+  packages/shared-schemas:
+    dependencies:
+      zod:
+        specifier: ^3.24.4
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
 
 packages:
 
