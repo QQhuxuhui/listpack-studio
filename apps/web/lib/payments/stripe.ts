@@ -7,8 +7,31 @@ import {
 } from '@/lib/db/queries';
 import type { WorkspaceWithMembers } from '@/lib/db/schema';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-08-27.basil',
+/**
+ * Lazy Stripe client.
+ *
+ * Stripe SDK v18 throws on construction when `apiKey` is falsy, which breaks
+ * any module that imports this file before Stripe is wired up (seed scripts,
+ * Phase 2 builds, etc). We defer construction until the first method call.
+ */
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      throw new Error(
+        'STRIPE_SECRET_KEY is not set. Required only when invoking Stripe (checkout / webhook / seed).',
+      );
+    }
+    _stripe = new Stripe(key, { apiVersion: '2025-08-27.basil' });
+  }
+  return _stripe;
+}
+
+export const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_t, prop, recv) {
+    return Reflect.get(getStripe() as unknown as object, prop, recv);
+  },
 });
 
 export async function createCheckoutSession({
