@@ -49,6 +49,7 @@ def _autoload() -> None:
     from .detectors import (  # noqa: F401
         background_color,
         border_detection,
+        category_forbidden_text,
         color_space,
         file_format,
         file_size,
@@ -56,6 +57,7 @@ def _autoload() -> None:
         pixel_dimension,
         product_fill_ratio,
         shadow_intensity,
+        text_in_image,
     )
 
 

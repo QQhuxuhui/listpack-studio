@@ -189,6 +189,26 @@ RULES: list[RuleSpec] = [
         source_url="https://sellercentral.amazon.com/help/hub/reference/external/G1881",
     ),
     RuleSpec(
+        rule_key="amazon.main_image.no_text",
+        platform="amazon",
+        applies_to_slot="main",
+        detector_type="text_in_image",
+        spec={
+            "allowed": False,
+            "min_confidence": 0.7,
+            "min_text_length": 2,
+        },
+        severity=RuleSeverity.block,
+        auto_fix={"type": "remove_text", "inpaint_model": "lama"},
+        display_title={"en": "Text detected in main image", "zh": "主图含文字"},
+        display_message={
+            "en": "Amazon main images must not contain any text, logo, watermark, or promo banner.",
+            "zh": "Amazon 主图禁止任何文字 / Logo / 水印 / 促销条幅。",
+        },
+        fix_cta={"en": "Remove text via inpainting", "zh": "AI 抹除文字"},
+        source_url="https://sellercentral.amazon.com/help/hub/reference/external/G1881",
+    ),
+    RuleSpec(
         rule_key="amazon.main_image.shadow_not_heavy",
         platform="amazon",
         applies_to_slot="main",
