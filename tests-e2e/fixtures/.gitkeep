@@ -1,0 +1,2 @@
+Generated test fixtures live here. sample-product.jpg is committed so
+CI / dev machines don't need to regenerate it via PIL.

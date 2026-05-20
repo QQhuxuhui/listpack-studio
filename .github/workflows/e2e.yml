@@ -1,0 +1,110 @@
+name: E2E (nightly + manual)
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC daily
+  workflow_dispatch:
+
+# We don't run E2E on every push because the Chromium download +
+# dev-server spin-up adds 5-8 minutes. CI catches regressions cheaply
+# via the `web` + `agent` jobs in ci.yml.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: listpack_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with: { version: 10.14.0 }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @listpack/tests-e2e install:browsers
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: uv sync
+        working-directory: apps/agent
+        run: uv sync --frozen
+
+      - name: Run DB migrations (web)
+        working-directory: apps/web
+        env:
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/listpack_e2e
+        run: pnpm db:migrate
+
+      - name: Seed compliance rules (agent)
+        working-directory: apps/agent
+        env:
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/listpack_e2e
+        run: uv run python -m compliance.rules.seed
+
+      - name: Start agent
+        working-directory: apps/agent
+        env:
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/listpack_e2e
+          AGENT_HOST: 127.0.0.1
+          AGENT_PORT: '8000'
+        run: |
+          nohup uv run uvicorn server:app --host 127.0.0.1 --port 8000 > /tmp/agent.log 2>&1 &
+          for i in {1..30}; do
+            curl -sf http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+
+      - name: Run Playwright (auto-starts Next dev)
+        working-directory: tests-e2e
+        env:
+          E2E_AUTO_WEB: '1'
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/listpack_e2e
+          AGENT_SERVICE_URL: http://127.0.0.1:8000
+          AUTH_SECRET: e2e-unit-test-secret-key
+        run: pnpm test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests-e2e/playwright-report/
+          retention-days: 7
+
+      - name: Tail agent log on failure
+        if: failure()
+        run: tail -200 /tmp/agent.log || true

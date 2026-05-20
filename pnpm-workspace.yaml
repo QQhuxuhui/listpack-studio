@@ -1,5 +1,6 @@
 packages:
   - "apps/web"
   - "packages/*"
+  - "tests-e2e"
 
 # Note: apps/agent is Python (managed by uv), not part of pnpm workspace

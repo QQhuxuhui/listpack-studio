@@ -3,6 +3,12 @@
 /storage/
 /apps/*/storage/
 
+# ── Playwright artefacts ──────────────────────────────────────
+tests-e2e/test-results/
+tests-e2e/playwright-report/
+tests-e2e/.playwright/
+tests-e2e/blob-report/
+
 # ── Node / TypeScript ─────────────────────────────────────────
 node_modules/
 .pnpm-store/
