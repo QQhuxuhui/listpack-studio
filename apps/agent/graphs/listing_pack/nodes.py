@@ -46,6 +46,7 @@ from scene_spec import (
     SceneSpec,
 )
 
+from .planner import Planner, PlanSpec
 from .state import (
     ListingPackState,
     ListingPackStatus,
@@ -71,6 +72,7 @@ class Services:
     image_executor: ImageExecutor
     platform_adapter: PlatformAdapter
     c2pa_stamper: C2PAStamper
+    planner: Planner | None = None  # D21; defaults to None so old tests still work
     # rules_loader can be a function so tests can stub the DB call without
     # mocking psycopg.
     rules_loader: Callable[..., list] = field(default=load_active_rules)
@@ -104,6 +106,86 @@ def _step_log(
 
 def _accumulate_cost(state: ListingPackState, delta: Decimal) -> str:
     return str(Decimal(state.get("cost_spent_usd", "0")) + delta)
+
+
+# ── plan (LLM decides which branches to run) ──────────────────────
+
+
+def make_plan_node(services: Services):
+    """Decide which downstream branches to run via Planner.
+
+    If services.planner is None (legacy tests, minimum graph), emit a
+    default plan with render_scene=True only.
+    """
+
+    async def plan(state: ListingPackState) -> dict:
+        started = _now_iso()
+
+        target_platforms = state.get("target_platforms") or ["amazon"]
+        category = state.get("target_category")
+        user_intent = state.get("user_intent")
+        budget = CostBudget(
+            cap_usd=Decimal(state["cost_cap_usd"]) - Decimal(state.get("cost_spent_usd", "0"))
+        )
+
+        if services.planner is None:
+            plan_spec = PlanSpec(
+                render_scene=True,
+                render_a_plus=False,
+                render_banner=False,
+                target_platforms=list(target_platforms),
+                refinement_rounds=0,
+                reasoning="no planner configured; default plan = scene only",
+            )
+            spent_delta = Decimal("0")
+        else:
+            try:
+                plan_spec = await services.planner.plan(
+                    user_intent=user_intent,
+                    product_category=category,
+                    target_platforms=list(target_platforms),
+                    budget=budget,
+                )
+                spent_delta = budget.spent_usd
+            except Exception as exc:
+                logger.exception("planner failed")
+                return {
+                    "status": ListingPackStatus.failed,
+                    "current_step": "plan",
+                    "error": {
+                        "step": "plan",
+                        "type": type(exc).__name__,
+                        "message": str(exc),
+                    },
+                    "step_log": [
+                        _step_log(
+                            "plan",
+                            status="failed",
+                            message=str(exc),
+                            started_at=started,
+                            ended_at=_now_iso(),
+                        )
+                    ],
+                }
+
+        return {
+            "status": ListingPackStatus.planning,
+            "current_step": "plan",
+            "plan": plan_spec.model_dump(mode="json"),
+            "cost_spent_usd": _accumulate_cost(state, spent_delta),
+            "step_log": [
+                _step_log(
+                    "plan",
+                    status="completed",
+                    cost_usd=spent_delta,
+                    message=plan_spec.reasoning,
+                    started_at=started,
+                    ended_at=_now_iso(),
+                )
+            ],
+        }
+
+    return plan
 
 
 # ── compliance check (pre-flight on source image) ─────────────────

@@ -22,6 +22,7 @@ Public API:
 """
 
 from .graph import build_graph, run_listing_pack
+from .planner import Planner, PlanSpec
 from .state import (
     ListingPackInput,
     ListingPackState,
@@ -33,6 +34,8 @@ __all__ = [
     "ListingPackInput",
     "ListingPackState",
     "ListingPackStatus",
+    "PlanSpec",
+    "Planner",
     "StepLogEntry",
     "build_graph",
     "run_listing_pack",

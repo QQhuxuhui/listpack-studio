@@ -88,6 +88,7 @@ class ListingPackState(TypedDict, total=False):
     cost_cap_usd: str  # Decimal as str for JSON-safety in checkpointer
 
     # ── progressively populated outputs ──────────────────────────
+    plan: dict[str, Any] | None  # PlanSpec.model_dump() — set by plan node (D21)
     compliance_overall: str | None  # 'pass' / 'warn' / 'fail'
     compliance_failures: list[dict[str, Any]]
     scene_spec: dict[str, Any] | None  # SceneSpec.model_dump()
@@ -117,6 +118,7 @@ def make_initial_state(input_: ListingPackInput) -> ListingPackState:
         target_category=input_.get("target_category"),
         user_intent=input_.get("user_intent"),
         cost_cap_usd=str(input_.get("cost_cap_usd") or "0.50"),
+        plan=None,
         compliance_overall=None,
         compliance_failures=[],
         scene_spec=None,
