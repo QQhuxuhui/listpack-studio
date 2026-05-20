@@ -247,6 +247,22 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     setSession(createdUser),
   ]);
 
+  // D30: welcome email (no-op if RESEND_API_KEY unset; never throws). We
+  // import lazily to avoid loading email deps when this code path is
+  // exercised by tests that don't care about delivery.
+  try {
+    const { sendWelcomeEmail } = await import('@/lib/email');
+    const baseUrl = process.env.BASE_URL ?? '';
+    await sendWelcomeEmail({
+      to: email,
+      workspaceName: createdWorkspace?.name ?? 'your workspace',
+      dashboardUrl: `${baseUrl}/dashboard`,
+    });
+  } catch (err) {
+    // Best-effort only — never block sign-up on email.
+    console.warn('welcome email failed', err);
+  }
+
   const redirectTo = formData.get('redirect') as string | null;
   if (redirectTo === 'checkout' && createdWorkspace) {
     const priceId = formData.get('priceId') as string;
