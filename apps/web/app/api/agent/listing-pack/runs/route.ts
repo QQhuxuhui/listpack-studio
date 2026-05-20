@@ -5,42 +5,76 @@
  * stream from the agent so the browser can render `step.completed` /
  * `run.completed` events as they arrive.
  *
- * The proxy keeps `AGENT_SERVICE_TOKEN` server-side; the browser never
- * sees the agent URL or token.
+ * If `listing_pack_id` is missing, this route auto-creates the asset +
+ * listing_pack rows from the uploaded file, so the browser only has to
+ * upload once. Existing callers that DO supply a listing_pack_id are
+ * unchanged.
  */
 
+import { NextResponse } from 'next/server';
 import { AgentRequestError } from '@/lib/agent-client';
+import {
+  insertAsset,
+  insertListingPack,
+} from '@/lib/db/asset-queries';
+import { getUser, getWorkspaceForUser } from '@/lib/db/queries';
+import { getStorage } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const AGENT_BASE = process.env.AGENT_SERVICE_URL ?? 'http://localhost:8000';
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const ALLOWED_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/tiff',
+  'image/gif',
+  'image/heic',
+]);
+
+function extFor(mime: string): string {
+  switch (mime) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    case 'image/tiff':
+      return 'tif';
+    case 'image/gif':
+      return 'gif';
+    case 'image/heic':
+      return 'heic';
+    default:
+      return 'bin';
+  }
+}
 
 export async function POST(request: Request) {
   const incoming = await request.formData();
   const file = incoming.get('file');
-  const listingPackId = incoming.get('listing_pack_id');
-  const platforms = incoming.get('target_platforms');
+  const platformsRaw = incoming.get('target_platforms');
+  let listingPackId = incoming.get('listing_pack_id') as string | null;
+  const category = (incoming.get('target_category') as string | null) ?? null;
 
   if (!(file instanceof File)) {
-    return Response.json(
+    return NextResponse.json(
       { error: { type: 'invalid_request', message: 'file field required' } },
       { status: 400 },
     );
   }
-  if (typeof listingPackId !== 'string' || !listingPackId) {
-    return Response.json(
-      {
-        error: {
-          type: 'invalid_request',
-          message: 'listing_pack_id required',
-        },
-      },
-      { status: 400 },
+  const mime = file.type || 'application/octet-stream';
+  if (!ALLOWED_MIMES.has(mime)) {
+    return NextResponse.json(
+      { error: { type: 'invalid_request', message: `unsupported mime: ${mime}` } },
+      { status: 415 },
     );
   }
-  if (typeof platforms !== 'string' || !platforms) {
-    return Response.json(
+  if (typeof platformsRaw !== 'string' || !platformsRaw) {
+    return NextResponse.json(
       {
         error: {
           type: 'invalid_request',
@@ -49,6 +83,86 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+  let platforms: string[];
+  try {
+    platforms = JSON.parse(platformsRaw);
+    if (!Array.isArray(platforms) || platforms.length === 0) {
+      throw new Error('must be a non-empty JSON array');
+    }
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: {
+          type: 'invalid_request',
+          message: `target_platforms invalid: ${(err as Error).message}`,
+        },
+      },
+      { status: 400 },
+    );
+  }
+
+  // ── auto-create listing_pack when missing ─────────────────────
+  if (!listingPackId) {
+    const [user, ws] = await Promise.all([getUser(), getWorkspaceForUser()]);
+    if (!user || !ws) {
+      return NextResponse.json(
+        { error: { type: 'unauthorized', message: 'sign in required' } },
+        { status: 401 },
+      );
+    }
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (bytes.length === 0) {
+      return NextResponse.json(
+        { error: { type: 'invalid_request', message: 'empty upload' } },
+        { status: 400 },
+      );
+    }
+    if (bytes.length > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: { type: 'invalid_request', message: 'file too large' } },
+        { status: 413 },
+      );
+    }
+
+    // 1) asset row + storage put
+    const created = await insertAsset({
+      workspaceId: ws.id,
+      uploaderUserId: user.id,
+      type: 'source_photo',
+      storageKey: 'pending',
+      mime,
+      fileSize: bytes.length,
+      category,
+    });
+    const key = `workspaces/${ws.id}/assets/${created.id}.${extFor(mime)}`;
+    const storage = getStorage();
+    const put = await storage.put({ key, bytes, mime });
+
+    const { db } = await import('@/lib/db/drizzle');
+    const { assets } = await import('@/lib/db/schema');
+    const { eq } = await import('drizzle-orm');
+    await db
+      .update(assets)
+      .set({ storageKey: put.storageKey, hash: put.sha256 })
+      .where(eq(assets.id, created.id));
+
+    // 2) listing_pack row
+    const packName = file.name?.replace(/\.[^.]+$/, '') || 'Untitled pack';
+    const pack = await insertListingPack({
+      workspaceId: ws.id,
+      name: packName.slice(0, 200),
+      sourceAssetId: created.id,
+      targetPlatforms: platforms,
+      category,
+      skuCount: 1,
+    });
+    listingPackId = pack.id;
+
+    // Re-build the multipart body — we already consumed `file` via
+    // arrayBuffer() so the original FormData reference still points to
+    // the same File and is forwardable.
+    incoming.set('listing_pack_id', listingPackId);
   }
 
   try {
@@ -71,7 +185,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Forward SSE stream as-is.
     return new Response(upstream.body, {
       status: 200,
       headers: {

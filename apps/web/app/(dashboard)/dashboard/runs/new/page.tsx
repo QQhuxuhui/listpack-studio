@@ -29,7 +29,6 @@ interface StepCard {
 }
 
 export default function NewRunPage() {
-  const [listingPackId, setListingPackId] = useState('');
   const [platforms, setPlatforms] = useState<string[]>(['amazon']);
   const [intent, setIntent] = useState('');
   const [costCap, setCostCap] = useState('1.00');
@@ -58,10 +57,6 @@ export default function NewRunPage() {
       setError('Pick a product photo first.');
       return;
     }
-    if (!listingPackId) {
-      setError('Listing pack ID required (will be auto-created in v2).');
-      return;
-    }
     if (platforms.length === 0) {
       setError('Pick at least one target platform.');
       return;
@@ -69,7 +64,8 @@ export default function NewRunPage() {
 
     const fd = new FormData();
     fd.set('file', file);
-    fd.set('listing_pack_id', listingPackId);
+    // listing_pack_id omitted — the API auto-creates a pack + asset row
+    // from the uploaded file (see app/api/agent/listing-pack/runs/route.ts).
     fd.set('target_platforms', JSON.stringify(platforms));
     if (intent) fd.set('user_intent', intent);
     fd.set('cost_cap_usd', costCap);
@@ -185,22 +181,6 @@ export default function NewRunPage() {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 disabled={running}
               />
-            </div>
-            <div>
-              <Label htmlFor="lpid" className="mb-2">
-                Listing pack id (UUID)
-              </Label>
-              <Input
-                id="lpid"
-                placeholder="00000000-…"
-                value={listingPackId}
-                onChange={(e) => setListingPackId(e.target.value)}
-                disabled={running}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                v1: create the listing_packs row first (DB seed / API).
-                v2 will auto-create.
-              </p>
             </div>
             <div>
               <Label className="mb-2 block">Target platforms</Label>

@@ -1,3 +1,6 @@
+# ── Local storage (LocalFsStorage backend in dev) ─────────────
+storage/
+
 # ── Node / TypeScript ─────────────────────────────────────────
 node_modules/
 .pnpm-store/
