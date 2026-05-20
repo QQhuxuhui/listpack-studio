@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Suspense, useActionState } from 'react';
 import useSWR from 'swr';
 import { Loader2, PlusCircle } from 'lucide-react';
@@ -21,6 +22,7 @@ import {
 } from '@/app/(login)/actions';
 import { customerPortalAction } from '@/lib/payments/actions';
 import type { Member, User, WorkspaceWithMembers } from '@/lib/db/schema';
+import { getPlan } from '@/lib/payments/plans';
 
 type ActionState = { error?: string; success?: string };
 
@@ -36,35 +38,88 @@ function SubscriptionSkeleton() {
   );
 }
 
-function ManageSubscription() {
+function PlanAndQuota() {
   const { data: ws } = useSWR<WorkspaceWithMembers>('/api/workspace', fetcher);
-  const planLabel = ws?.subscription?.plan ?? 'free';
-  const status = ws?.subscription?.status;
+  const sub = ws?.subscription ?? null;
+  const planId = sub?.plan ?? 'free';
+  const plan = getPlan(planId);
+  const used = sub?.skuUsed ?? 0;
+  const quota = sub?.skuQuota ?? plan.skuQuota;
+  const usagePct = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
+  const overUsed = used > quota;
+  const overageActive = sub?.overageEnabled && overUsed;
+
+  let barColor = 'bg-orange-500';
+  if (usagePct >= 90) barColor = 'bg-red-500';
+  else if (usagePct >= 70) barColor = 'bg-amber-500';
+
   const statusLabel =
-    status === 'active'
-      ? 'Billed monthly'
-      : status === 'trialing'
-      ? 'Trial period'
-      : 'No active subscription';
+    sub?.status === 'trialing'
+      ? `Trial period · ${plan.trialDays} days`
+      : sub?.status === 'past_due'
+        ? 'Payment past due'
+        : sub?.status === 'canceled'
+          ? 'Canceled — falls back to Free at period end'
+          : sub?.status === 'active'
+            ? `Billed monthly · $${plan.monthlyPriceCents ? plan.monthlyPriceCents / 100 : 0}`
+            : 'No active subscription';
 
   return (
     <Card className="mb-8">
       <CardHeader>
-        <CardTitle>Workspace Subscription</CardTitle>
+        <CardTitle>Plan &amp; Usage</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <div className="mb-4 sm:mb-0">
-              <p className="font-medium">Current Plan: {planLabel}</p>
-              <p className="text-sm text-muted-foreground">{statusLabel}</p>
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+          <div>
+            <p className="font-medium text-lg">{plan.displayName} plan</p>
+            <p className="text-sm text-muted-foreground">{statusLabel}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {planId === 'free' && (
+              <Link href="/pricing">
+                <Button variant="default" size="sm">
+                  Upgrade
+                </Button>
+              </Link>
+            )}
             <form action={customerPortalAction}>
-              <Button type="submit" variant="outline">
-                Manage Subscription
+              <Button type="submit" variant="outline" size="sm">
+                Manage billing
               </Button>
             </form>
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="font-medium">
+              SKUs used this period: {used} / {quota}
+            </span>
+            <span className="text-muted-foreground">{usagePct}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className={`h-full transition-all ${barColor}`}
+              style={{ width: `${usagePct}%` }}
+            />
+          </div>
+          {overUsed && (
+            <p className="text-xs text-red-600 mt-2">
+              You're {used - quota} SKUs over your monthly quota.{' '}
+              {overageActive
+                ? plan.overagePerSkuUsd
+                  ? `Overage rate: $${plan.overagePerSkuUsd} / SKU.`
+                  : 'Overage not allowed on this plan.'
+                : 'Overage is disabled — further runs will be rejected.'}
+            </p>
+          )}
+          {!overUsed && plan.overagePerSkuUsd !== null && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Beyond {quota} SKUs: ${plan.overagePerSkuUsd} per SKU
+              {sub?.overageEnabled === false ? ' (currently disabled)' : ''}.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -281,7 +336,7 @@ export default function SettingsPage() {
         Workspace Settings
       </h1>
       <Suspense fallback={<SubscriptionSkeleton />}>
-        <ManageSubscription />
+        <PlanAndQuota />
       </Suspense>
       <Suspense fallback={<WorkspaceMembersSkeleton />}>
         <WorkspaceMembers />
