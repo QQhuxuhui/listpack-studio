@@ -50,6 +50,15 @@ export const en: Dictionary = {
     overage_disable: 'Disable',
     overage_saving: 'Saving…',
   },
+  category: {
+    label: 'Category',
+    none: '(none)',
+    risk_supported: 'Supported v1 category',
+    risk_caution: 'Allowed with caveats',
+    risk_blocked: 'Blocked in v1 — regulatory risk',
+    blocked_run_disabled:
+      'Runs cannot start for blocked categories. Pick a supported category or use a specialist tool.',
+  },
   runs: {
     list_h1: 'Recent runs',
     latest_n: 'Latest 20 agent runs',

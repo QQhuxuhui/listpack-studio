@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CategoryPicker } from '@/components/category-picker';
+import { isCategoryRunnable } from '@/lib/compliance/category-guardrails';
 
 type Platform = 'amazon' | 'shopify' | 'ebay' | 'temu' | 'shein';
 
@@ -57,15 +59,6 @@ type AutoFixResult = {
 };
 
 const PLATFORMS: Platform[] = ['amazon', 'shopify', 'ebay', 'temu', 'shein'];
-const CATEGORIES = [
-  '',
-  'apparel',
-  'cosmetics',
-  'food',
-  'kids_toys',
-  'pet_supplements',
-  'supplements',
-];
 
 export default function CompliancePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -223,20 +216,11 @@ export default function CompliancePage() {
                 </select>
               </div>
               <div>
-                <Label htmlFor="category">Category (optional)</Label>
-                <select
-                  id="category"
+                <CategoryPicker
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={setCategory}
                   disabled={pending}
-                  className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c || '(none)'}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 

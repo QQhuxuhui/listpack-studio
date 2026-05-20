@@ -72,6 +72,14 @@ export type Dictionary = {
     overage_disable: string;
     overage_saving: string;
   };
+  category: {
+    label: string;
+    none: string;
+    risk_supported: string;
+    risk_caution: string;
+    risk_blocked: string;
+    blocked_run_disabled: string;
+  };
   runs: {
     list_h1: string;
     latest_n: string;

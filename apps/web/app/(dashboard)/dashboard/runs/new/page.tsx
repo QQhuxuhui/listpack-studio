@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CategoryPicker } from '@/components/category-picker';
+import { isCategoryRunnable } from '@/lib/compliance/category-guardrails';
 
 const PLATFORM_OPTIONS = ['amazon', 'shopify', 'ebay', 'temu', 'shein'] as const;
 
@@ -32,6 +34,7 @@ export default function NewRunPage() {
   const [platforms, setPlatforms] = useState<string[]>(['amazon']);
   const [intent, setIntent] = useState('');
   const [costCap, setCostCap] = useState('1.00');
+  const [category, setCategory] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
@@ -61,12 +64,17 @@ export default function NewRunPage() {
       setError('Pick at least one target platform.');
       return;
     }
+    if (!isCategoryRunnable(category)) {
+      setError('Selected category is blocked in v1. Pick another.');
+      return;
+    }
 
     const fd = new FormData();
     fd.set('file', file);
     // listing_pack_id omitted — the API auto-creates a pack + asset row
     // from the uploaded file (see app/api/agent/listing-pack/runs/route.ts).
     fd.set('target_platforms', JSON.stringify(platforms));
+    if (category) fd.set('target_category', category);
     if (intent) fd.set('user_intent', intent);
     fd.set('cost_cap_usd', costCap);
 
@@ -206,6 +214,11 @@ export default function NewRunPage() {
                 ))}
               </div>
             </div>
+            <CategoryPicker
+              value={category}
+              onChange={setCategory}
+              disabled={running}
+            />
             <div>
               <Label htmlFor="intent" className="mb-2">
                 Intent (optional)
@@ -233,7 +246,10 @@ export default function NewRunPage() {
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             <div className="flex gap-2">
-              <Button type="submit" disabled={running}>
+              <Button
+                type="submit"
+                disabled={running || !isCategoryRunnable(category)}
+              >
                 {running ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

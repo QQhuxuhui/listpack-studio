@@ -47,6 +47,15 @@ export const zhCN: Dictionary = {
     overage_disable: '关闭',
     overage_saving: '保存中…',
   },
+  category: {
+    label: '品类',
+    none: '（未选）',
+    risk_supported: 'v1 支持品类',
+    risk_caution: '允许但有附加风险提示',
+    risk_blocked: 'v1 禁用 — 监管风险',
+    blocked_run_disabled:
+      '禁用品类不可发起任务。请选择支持品类，或使用专业工具。',
+  },
   runs: {
     list_h1: '最近任务',
     latest_n: '最近 20 条 Agent 任务',

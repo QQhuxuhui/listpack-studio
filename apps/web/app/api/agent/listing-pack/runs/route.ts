@@ -14,6 +14,10 @@
 import { NextResponse } from 'next/server';
 import { AgentRequestError } from '@/lib/agent-client';
 import {
+  getCategory,
+  isCategoryRunnable,
+} from '@/lib/compliance/category-guardrails';
+import {
   insertAsset,
   insertListingPack,
 } from '@/lib/db/asset-queries';
@@ -82,6 +86,24 @@ export async function POST(request: Request) {
         },
       },
       { status: 400 },
+    );
+  }
+
+  // D53 — PRD § 00 § 3.3 red-line categories. Enforce server-side so a
+  // client that ignores the warning banner can't slip through.
+  if (!isCategoryRunnable(category)) {
+    const cat = getCategory(category);
+    return NextResponse.json(
+      {
+        error: {
+          type: 'category_blocked',
+          category,
+          message:
+            cat?.reason ??
+            `Category "${category}" is not supported in v1 (regulatory risk).`,
+        },
+      },
+      { status: 403 },
     );
   }
   let platforms: string[];
