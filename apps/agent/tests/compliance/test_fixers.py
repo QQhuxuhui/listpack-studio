@@ -157,7 +157,7 @@ def test_whiten_background_ai_mode_runs_or_falls_back_cleanly():
         # Real rembg path: produced JPEG with subject pixels counted.
         assert result.metadata["method"] == "ai_remove_bg"
         assert "subject_pixels" in result.metadata
-        assert result.mime == "image/jpeg"
+        assert result.mime_out == "image/jpeg"
 
 
 def test_whiten_background_replicate_mode_needs_token():

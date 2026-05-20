@@ -10,6 +10,7 @@ Public API:
 - run_listing_pack_streamed                — async generator yielding SSE events
 """
 
+from .checkpointer import get_checkpointer, reset_checkpointer_cache
 from .hitl import (
     HITLError,
     InvalidStateTransition,
@@ -61,12 +62,14 @@ __all__ = [
     "create_agent_run",
     "fork_run",
     "get_agent_run",
+    "get_checkpointer",
     "get_workspace_quota",
     "insert_agent_step",
     "is_run_interrupted",
     "list_agent_steps",
     "pause_run",
     "record_usage",
+    "reset_checkpointer_cache",
     "reset_sku_used",
     "resolve_workspace_for_listing_pack",
     "resume_run",

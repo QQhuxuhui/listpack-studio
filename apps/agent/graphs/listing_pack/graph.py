@@ -47,12 +47,18 @@ def _after_plan(state: ListingPackState) -> str:
     return "platform_adapt"
 
 
-def build_graph(services: Services):
+def build_graph(services: Services, *, checkpointer: object | None = None):
     """Build + compile the listing_pack graph with services injected.
 
     Returns a compiled LangGraph (CompiledStateGraph) ready for ainvoke /
     astream. Caller supplies a Services bag; production wiring lives in
     server.py, tests use a mocked bag.
+
+    D57: optionally accepts a LangGraph checkpointer (e.g. PostgresSaver
+    from `runtime.checkpointer.get_checkpointer()`). When provided,
+    every node's state delta is persisted under `(thread_id, ...)` and
+    the run becomes resumable via `Command(resume=...)`. Default `None`
+    keeps the in-memory MemorySaver so existing tests + dev mode work.
     """
     g = StateGraph(ListingPackState)
 
@@ -92,6 +98,8 @@ def build_graph(services: Services):
     g.add_edge("banner_build", "c2pa_stamp")
     g.add_edge("c2pa_stamp", END)
 
+    if checkpointer is not None:
+        return g.compile(checkpointer=checkpointer)
     return g.compile()
 
 
