@@ -34,7 +34,18 @@ from compliance.loader import (
     reload_rules,
 )
 from compliance.schemas import ComplianceReport
+from generators import C2PAStamper, ImageExecutor, InMemoryImageCache, PlatformAdapter
 from graphs.hello import build_graph
+from graphs.listing_pack import Critic, Planner
+from graphs.listing_pack.nodes import Services as ListingPackServices
+from models import ModelRouter
+from models.sparkcode_client import SparkcodeClient
+from runtime import (
+    get_agent_run,
+    list_agent_steps,
+    run_listing_pack_streamed,
+)
+from scene_spec import SceneJsonExecutor
 
 load_dotenv()
 logging.basicConfig(
@@ -48,10 +59,35 @@ AGENT_SERVICE_TOKEN = os.environ.get("AGENT_SERVICE_TOKEN", "")
 PlatformLiteral = Literal["amazon", "shopify", "ebay", "temu", "shein"]
 
 
+def _build_listing_pack_services() -> ListingPackServices:
+    """Wire production Services (router + executors + planner + critic)."""
+    clients = {}
+    sparkcode_url = os.environ.get("SPARKCODE_BASE_URL")
+    sparkcode_key = os.environ.get("SPARKCODE_API_KEY")
+    if sparkcode_url and sparkcode_key:
+        clients["sparkcode"] = SparkcodeClient(
+            base_url=sparkcode_url,
+            api_key=sparkcode_key,
+        )
+    router = ModelRouter(clients=clients)
+    scene_exec = SceneJsonExecutor(router)
+    image_exec = ImageExecutor(router=router, cache=InMemoryImageCache())
+    return ListingPackServices(
+        router=router,
+        scene_executor=scene_exec,
+        image_executor=image_exec,
+        platform_adapter=PlatformAdapter(),
+        c2pa_stamper=C2PAStamper(),
+        planner=Planner(router) if clients else None,
+        critic=Critic(router) if clients else None,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Build compiled graphs once at startup, share across requests."""
     app.state.hello_graph = build_graph().compile()
+    app.state.listing_pack_services = _build_listing_pack_services()
     yield
 
 
@@ -274,6 +310,114 @@ async def compliance_auto_fix(
         "mime": current_mime,
         "size_bytes": len(current_bytes),
         "applied": applied,
+    }
+
+
+# ───────────────────────────────────────────────────────── listing_pack agent (D24)
+
+
+@app.post("/v1/agent/listing-pack/runs")
+async def listing_pack_run(
+    request: Request,
+    file: Annotated[UploadFile, File(description="Source product image")],
+    listing_pack_id: Annotated[str, Form(description="ListingPack row id")],
+    target_platforms: Annotated[
+        str, Form(description="JSON array of target platforms, e.g. [\"amazon\"]")
+    ],
+    target_category: Annotated[str | None, Form()] = None,
+    user_intent: Annotated[str | None, Form()] = None,
+    cost_cap_usd: Annotated[str, Form()] = "0.50",
+) -> EventSourceResponse:
+    """Start a listing_pack run and stream every step as SSE.
+
+    Each event is one of:
+    - `run.started`      — emitted before any node runs
+    - `step.completed`   — one per executed step (plan, compliance_check, scene_json, ...)
+    - `run.completed`    — terminal, success
+    - `run.failed`       — terminal, with `error` payload
+
+    The run is persisted to `agent_runs` + `agent_steps` in Postgres so
+    the UI can resume / replay.
+    """
+    require_service_token(request)
+
+    mime = (file.content_type or "").lower()
+    if mime and mime not in ALLOWED_UPLOAD_MIMES:
+        raise HTTPException(415, f"unsupported media type: {mime}")
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(400, "empty upload")
+    if len(image_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"file too large: {len(image_bytes)} bytes")
+
+    try:
+        platforms = json.loads(target_platforms)
+        if not isinstance(platforms, list) or not platforms:
+            raise ValueError("target_platforms must be a non-empty JSON array")
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    services = request.app.state.listing_pack_services
+    persist = bool(os.environ.get("POSTGRES_URL"))
+
+    async def event_generator():
+        async for sse in run_listing_pack_streamed(
+            services,
+            input_={
+                "run_id": "(generated)",
+                "source_image_bytes": image_bytes,
+                "source_image_mime": mime or "image/jpeg",
+                "target_platforms": platforms,
+                "target_category": target_category,
+                "user_intent": user_intent,
+                "cost_cap_usd": cost_cap_usd,
+            },
+            listing_pack_id=listing_pack_id,
+            persist=persist,
+        ):
+            yield sse
+
+    return EventSourceResponse(event_generator())
+
+
+@app.get("/v1/agent/listing-pack/runs/{run_id}")
+async def get_listing_pack_run(run_id: str, request: Request) -> dict:
+    """Snapshot of a run — latest state, plan, cost, steps."""
+    require_service_token(request)
+
+    record = await run_in_threadpool(get_agent_run, run_id)
+    if record is None:
+        raise HTTPException(404, f"run {run_id} not found")
+
+    steps = await run_in_threadpool(list_agent_steps, run_id)
+
+    return {
+        "run": {
+            "id": record.id,
+            "listing_pack_id": record.listing_pack_id,
+            "status": record.status,
+            "current_step": record.current_step,
+            "plan": record.plan,
+            "state": record.state,
+            "cost_cap_usd": str(record.cost_cap_usd) if record.cost_cap_usd else None,
+            "cost_spent_usd": str(record.cost_spent_usd),
+            "started_at": record.started_at.isoformat() if record.started_at else None,
+            "ended_at": record.ended_at.isoformat() if record.ended_at else None,
+            "error": record.error,
+            "created_at": record.created_at.isoformat(),
+        },
+        "steps": [
+            {
+                "id": s.id,
+                "step_name": s.step_name,
+                "status": s.status,
+                "outputs": s.outputs,
+                "error": s.error,
+                "started_at": s.started_at.isoformat() if s.started_at else None,
+                "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+            }
+            for s in steps
+        ],
     }
 
 
