@@ -40,13 +40,14 @@ async def test_happy_path_runs_to_completion(mocked_services, fixture_jpeg):
     assert final["current_step"] == "c2pa_stamp"
     assert final["error"] is None
 
-    # every node logged a step (plan added in D21 — runs first)
+    # every node logged a step (plan in D21, refine_loop in D22-D23)
     steps = [s["step"] for s in final["step_log"]]
     assert steps == [
         "plan",
         "compliance_check",
         "scene_json",
         "image_gen",
+        "refine_loop",
         "platform_adapt",
         "c2pa_stamp",
     ]
@@ -116,6 +117,7 @@ async def test_astream_emits_per_node_updates(mocked_services, fixture_jpeg):
         "compliance_check",
         "scene_json",
         "image_gen",
+        "refine_loop",
         "platform_adapt",
         "c2pa_stamp",
     ]

@@ -21,6 +21,15 @@ Public API:
 - run_listing_pack     — convenience runner for tests / single-shot calls
 """
 
+from .critic import (
+    BUILTIN_CRITIC_CARDS,
+    Critic,
+    CriticCard,
+    CriticDimension,
+    CriticResult,
+    DimensionScore,
+    damp,
+)
 from .graph import build_graph, run_listing_pack
 from .planner import Planner, PlanSpec
 from .state import (
@@ -31,6 +40,12 @@ from .state import (
 )
 
 __all__ = [
+    "BUILTIN_CRITIC_CARDS",
+    "Critic",
+    "CriticCard",
+    "CriticDimension",
+    "CriticResult",
+    "DimensionScore",
     "ListingPackInput",
     "ListingPackState",
     "ListingPackStatus",
@@ -38,5 +53,6 @@ __all__ = [
     "Planner",
     "StepLogEntry",
     "build_graph",
+    "damp",
     "run_listing_pack",
 ]

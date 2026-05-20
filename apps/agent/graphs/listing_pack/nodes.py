@@ -46,6 +46,7 @@ from scene_spec import (
     SceneSpec,
 )
 
+from .critic import BUILTIN_CRITIC_CARDS, Critic, CriticResult
 from .planner import Planner, PlanSpec
 from .state import (
     ListingPackState,
@@ -73,6 +74,7 @@ class Services:
     platform_adapter: PlatformAdapter
     c2pa_stamper: C2PAStamper
     planner: Planner | None = None  # D21; defaults to None so old tests still work
+    critic: Critic | None = None  # D22-23
     # rules_loader can be a function so tests can stub the DB call without
     # mocking psycopg.
     rules_loader: Callable[..., list] = field(default=load_active_rules)
@@ -404,6 +406,168 @@ def make_image_gen_node(services: Services):
         }
 
     return image_gen
+
+
+# ── refine loop (Painter-Commenter, D22-23) ──────────────────────
+
+
+def make_refine_loop_node(
+    services: Services,
+    *,
+    critic_card_id: str = "ecom_aesthetic_v1",
+    max_iterations: int = 3,
+):
+    """Critic evaluates the image; if below threshold, regenerate (up to N times).
+
+    Skipped when:
+    - services.critic is None (legacy / minimum graph)
+    - plan.refinement_rounds == 0
+    - scene_image_bytes missing (earlier failure)
+
+    Cost model: each iteration spends both a VLM call (critic) and an
+    image_gen call (regenerator). Budget aware — aborts when no remaining
+    budget would cover another iteration.
+    """
+
+    async def refine_loop(state: ListingPackState) -> dict:
+        started = _now_iso()
+
+        if services.critic is None:
+            return _skip_step(started, "no critic configured")
+
+        plan = state.get("plan") or {}
+        target_rounds = int(plan.get("refinement_rounds", 0))
+        if target_rounds <= 0:
+            return _skip_step(started, "plan.refinement_rounds=0")
+
+        scene_bytes = state.get("scene_image_bytes")
+        if not scene_bytes:
+            return _skip_step(started, "no scene_image_bytes; nothing to refine")
+
+        card = BUILTIN_CRITIC_CARDS.get(critic_card_id)
+        if card is None:
+            return _skip_step(started, f"unknown critic card: {critic_card_id}")
+
+        applied_rounds = min(target_rounds, max_iterations)
+        current_bytes = scene_bytes
+        current_cost_total = Decimal(state.get("cost_spent_usd", "0"))
+        cap = Decimal(state["cost_cap_usd"])
+        iterations: list[dict] = []
+        last_critic_decision = "accept"
+
+        for i in range(applied_rounds):
+            budget = CostBudget(cap_usd=cap - current_cost_total)
+            try:
+                outcome = await services.critic.evaluate(
+                    current_bytes,
+                    image_mime="image/png",
+                    card=card,
+                    scene_spec_dump=state.get("scene_spec"),
+                    budget=budget,
+                )
+            except Exception as exc:
+                logger.exception("critic failed on iteration %d", i + 1)
+                iterations.append(
+                    {
+                        "iter": i + 1,
+                        "phase": "critic",
+                        "error": str(exc),
+                    }
+                )
+                break
+
+            current_cost_total += outcome.cost_usd
+            iterations.append(
+                {
+                    "iter": i + 1,
+                    "phase": "critic",
+                    "score": outcome.result.overall_score,
+                    "decision": outcome.result.decision,
+                    "cost_usd": str(outcome.cost_usd),
+                }
+            )
+            last_critic_decision = outcome.result.decision
+
+            if outcome.result.decision == "accept":
+                break
+            if outcome.result.decision == "abort":
+                break
+
+            # decision == "refine" → regenerate with critic feedback merged into prompt
+            spec_dump = state.get("scene_spec") or {}
+            from scene_spec import SceneSpec
+
+            spec = SceneSpec.model_validate(spec_dump)
+            regen_budget = CostBudget(cap_usd=cap - current_cost_total)
+
+            # Append improvement directions into the prompt indirectly by
+            # mutating the spec.background.value (compiler appends mood + lighting
+            # too). v1 keeps it lo-fi; v2 will use scene_spec.elements.
+            extra_hint = "; ".join(outcome.result.improvement_directions[:3])
+            if extra_hint:
+                spec.background.value = f"{spec.background.value} — {extra_hint}"
+
+            try:
+                regen = await services.image_executor.generate(
+                    spec, budget=regen_budget, seed=i + 1
+                )
+            except Exception as exc:
+                logger.exception("regen failed on iteration %d", i + 1)
+                iterations.append(
+                    {
+                        "iter": i + 1,
+                        "phase": "regen",
+                        "error": str(exc),
+                    }
+                )
+                break
+
+            current_bytes = regen.bytes_data
+            current_cost_total += regen.cost_usd
+            iterations.append(
+                {
+                    "iter": i + 1,
+                    "phase": "regen",
+                    "model": regen.model_id,
+                    "cost_usd": str(regen.cost_usd),
+                    "cache_hit": regen.cache_hit,
+                }
+            )
+
+        return {
+            "status": ListingPackStatus.running,
+            "current_step": "refine_loop",
+            "scene_image_bytes": current_bytes,
+            "cost_spent_usd": str(current_cost_total),
+            "refine_iterations": iterations,
+            "step_log": [
+                _step_log(
+                    "refine_loop",
+                    status="completed",
+                    message=(
+                        f"{len(iterations)} iter; final decision={last_critic_decision}"
+                    ),
+                    started_at=started,
+                    ended_at=_now_iso(),
+                )
+            ],
+        }
+
+    def _skip_step(started: str, reason: str) -> dict:
+        return {
+            "current_step": "refine_loop",
+            "step_log": [
+                _step_log(
+                    "refine_loop",
+                    status="skipped",
+                    message=reason,
+                    started_at=started,
+                    ended_at=_now_iso(),
+                )
+            ],
+        }
+
+    return refine_loop
 
 
 # ── platform_adapt (multi-size) ───────────────────────────────────

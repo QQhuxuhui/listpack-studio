@@ -96,6 +96,7 @@ class ListingPackState(TypedDict, total=False):
     scene_image_bytes: bytes | None
     scene_image_model: str | None
     scene_image_cost_usd: str | None
+    refine_iterations: list[dict[str, Any]]  # critic + regen history (D22-23)
     stamped_images: list[dict[str, Any]]  # per-platform stamped outputs
     platform_outputs: list[dict[str, Any]]  # per-platform adapter outputs
 

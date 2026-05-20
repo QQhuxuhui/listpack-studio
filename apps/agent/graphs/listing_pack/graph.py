@@ -26,6 +26,7 @@ from .nodes import (
     make_image_gen_node,
     make_plan_node,
     make_platform_adapt_node,
+    make_refine_loop_node,
     make_scene_json_node,
 )
 from .state import ListingPackInput, ListingPackState, make_initial_state
@@ -57,6 +58,7 @@ def build_graph(services: Services):
     g.add_node("compliance_check", make_compliance_check_node(services))
     g.add_node("scene_json", make_scene_json_node(services))
     g.add_node("image_gen", make_image_gen_node(services))
+    g.add_node("refine_loop", make_refine_loop_node(services))
     g.add_node("platform_adapt", make_platform_adapt_node(services))
     g.add_node("c2pa_stamp", make_c2pa_stamp_node(services))
 
@@ -71,7 +73,8 @@ def build_graph(services: Services):
         },
     )
     g.add_edge("scene_json", "image_gen")
-    g.add_edge("image_gen", "platform_adapt")
+    g.add_edge("image_gen", "refine_loop")
+    g.add_edge("refine_loop", "platform_adapt")
     g.add_edge("platform_adapt", "c2pa_stamp")
     g.add_edge("c2pa_stamp", END)
 
