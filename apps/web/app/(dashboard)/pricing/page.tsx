@@ -1,94 +1,131 @@
 import { checkoutAction } from '@/lib/payments/actions';
 import { Check } from 'lucide-react';
 import { getStripePrices, getStripeProducts } from '@/lib/payments/stripe';
+import { publicPlans, type PlanDef } from '@/lib/payments/plans';
 import { SubmitButton } from './submit-button';
 
 // Prices are fresh for one hour max
 export const revalidate = 3600;
 
+interface PricedPlan extends PlanDef {
+  stripePriceId?: string;
+}
+
 export default async function PricingPage() {
-  const [prices, products] = await Promise.all([
-    getStripePrices(),
-    getStripeProducts(),
-  ]);
+  let stripePriceByProductName = new Map<string, string>();
 
-  const basePlan = products.find((product) => product.name === 'Base');
-  const plusPlan = products.find((product) => product.name === 'Plus');
+  try {
+    const [prices, products] = await Promise.all([
+      getStripePrices(),
+      getStripeProducts(),
+    ]);
+    for (const product of products) {
+      const price = prices.find((p) => p.productId === product.id);
+      if (price?.id) {
+        stripePriceByProductName.set(product.name, price.id);
+      }
+    }
+  } catch {
+    // Stripe unavailable (e.g. STRIPE_SECRET_KEY unset in dev) — render the
+    // catalog without checkout buttons.
+  }
 
-  const basePrice = prices.find((price) => price.productId === basePlan?.id);
-  const plusPrice = prices.find((price) => price.productId === plusPlan?.id);
+  const plans: PricedPlan[] = publicPlans().map((plan) => ({
+    ...plan,
+    stripePriceId: stripePriceByProductName.get(plan.stripeProductName),
+  }));
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="grid md:grid-cols-2 gap-8 max-w-xl mx-auto">
-        <PricingCard
-          name={basePlan?.name || 'Base'}
-          price={basePrice?.unitAmount || 800}
-          interval={basePrice?.interval || 'month'}
-          trialDays={basePrice?.trialPeriodDays || 7}
-          features={[
-            'Unlimited Usage',
-            'Unlimited Workspace Members',
-            'Email Support',
-          ]}
-          priceId={basePrice?.id}
-        />
-        <PricingCard
-          name={plusPlan?.name || 'Plus'}
-          price={plusPrice?.unitAmount || 1200}
-          interval={plusPrice?.interval || 'month'}
-          trialDays={plusPrice?.trialPeriodDays || 7}
-          features={[
-            'Everything in Base, and:',
-            'Early Access to New Features',
-            '24/7 Support + Slack Access',
-          ]}
-          priceId={plusPrice?.id}
-        />
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-semibold text-gray-900 mb-3">
+          Simple, transparent pricing
+        </h1>
+        <p className="text-gray-600 max-w-2xl mx-auto">
+          Pay-as-you-grow. No long-term contracts. Cancel anytime — we keep
+          your data exportable for 30 days.
+        </p>
       </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto">
+        {plans.map((plan) => (
+          <PricingCard key={plan.id} plan={plan} />
+        ))}
+      </div>
+
+      <p className="text-center text-sm text-gray-500 mt-12">
+        Need more? <a href="/contact" className="underline">Talk to sales</a>{' '}
+        about Agency ($499/mo, 2500 SKUs) or Enterprise (custom volume, SLA,
+        private LoRA).
+      </p>
     </main>
   );
 }
 
-function PricingCard({
-  name,
-  price,
-  interval,
-  trialDays,
-  features,
-  priceId,
-}: {
-  name: string;
-  price: number;
-  interval: string;
-  trialDays: number;
-  features: string[];
-  priceId?: string;
-}) {
+function PricingCard({ plan }: { plan: PricedPlan }) {
+  const isFree = plan.monthlyPriceCents === 0;
+  const isPro = plan.id === 'pro';
+
   return (
-    <div className="pt-6">
-      <h2 className="text-2xl font-medium text-gray-900 mb-2">{name}</h2>
-      <p className="text-sm text-gray-600 mb-4">
-        with {trialDays} day free trial
-      </p>
-      <p className="text-4xl font-medium text-gray-900 mb-6">
-        ${price / 100}{' '}
-        <span className="text-xl font-normal text-gray-600">
-          per user / {interval}
+    <div
+      className={`flex flex-col rounded-lg border bg-white p-6 ${
+        isPro
+          ? 'border-orange-400 ring-2 ring-orange-100 relative'
+          : 'border-gray-200'
+      }`}
+    >
+      {isPro && (
+        <span className="absolute -top-3 right-4 bg-orange-500 text-white text-xs font-semibold px-2 py-1 rounded-full">
+          Most popular
         </span>
+      )}
+      <h2 className="text-xl font-semibold text-gray-900 mb-1">
+        {plan.displayName}
+      </h2>
+      <p className="text-sm text-gray-600 mb-4">
+        {isFree
+          ? 'No credit card required'
+          : `${plan.trialDays}-day free trial`}
       </p>
-      <ul className="space-y-4 mb-8">
-        {features.map((feature, index) => (
-          <li key={index} className="flex items-start">
-            <Check className="h-5 w-5 text-orange-500 mr-2 mt-0.5 flex-shrink-0" />
-            <span className="text-gray-700">{feature}</span>
+      <p className="text-4xl font-semibold text-gray-900 mb-1">
+        {plan.monthlyPriceCents !== null
+          ? `$${plan.monthlyPriceCents / 100}`
+          : 'Custom'}
+        {plan.monthlyPriceCents !== null && (
+          <span className="text-sm font-normal text-gray-600 ml-1">/ month</span>
+        )}
+      </p>
+      <p className="text-sm text-gray-600 mb-6">
+        Includes {plan.skuQuota} SKUs / month
+        {plan.overagePerSkuUsd !== null
+          ? ` · then $${plan.overagePerSkuUsd}/SKU`
+          : ' · no overage'}
+      </p>
+      <ul className="space-y-3 mb-8 flex-1">
+        {plan.features.map((feature, i) => (
+          <li key={i} className="flex items-start text-sm text-gray-700">
+            <Check className="h-4 w-4 text-orange-500 mr-2 mt-0.5 flex-shrink-0" />
+            <span>{feature}</span>
           </li>
         ))}
       </ul>
-      <form action={checkoutAction}>
-        <input type="hidden" name="priceId" value={priceId} />
-        <SubmitButton />
-      </form>
+      {isFree ? (
+        <a
+          href="/sign-up"
+          className="block text-center px-4 py-2 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800"
+        >
+          Start free
+        </a>
+      ) : plan.stripePriceId ? (
+        <form action={checkoutAction}>
+          <input type="hidden" name="priceId" value={plan.stripePriceId} />
+          <SubmitButton />
+        </form>
+      ) : (
+        <p className="text-xs text-gray-500 text-center">
+          Pricing setup in progress
+        </p>
+      )}
     </div>
   );
 }

@@ -639,6 +639,9 @@ export type Workspace = typeof workspaces.$inferSelect;
 export type NewWorkspace = typeof workspaces.$inferInsert;
 export type Member = typeof members.$inferSelect;
 export type NewMember = typeof members.$inferInsert;
+// PG enum value unions — keep in sync with PLAN_CATALOG in lib/payments/plans.ts.
+export type Plan = (typeof planEnum.enumValues)[number];
+export type SubscriptionStatus = (typeof subscriptionStatusEnum.enumValues)[number];
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
 export type UsageRecord = typeof usageRecords.$inferSelect;

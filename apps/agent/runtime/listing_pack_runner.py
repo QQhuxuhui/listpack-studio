@@ -40,6 +40,14 @@ from .persistence import (
     state_to_jsonb_safe,
     update_agent_run,
 )
+from .quota import (
+    QuotaError,
+    QuotaExceeded,
+    SubscriptionMissing,
+    check_quota,
+    record_usage,
+    resolve_workspace_for_listing_pack,
+)
 
 logger = logging.getLogger("listpack.runtime.listing_pack_runner")
 
@@ -65,6 +73,13 @@ async def run_listing_pack_streamed(
     persist_update: Callable = _DEFAULT_PERSIST_UPDATE,
     persist_step: Callable = _DEFAULT_PERSIST_STEP,
     interrupt_checker: Callable[[str], tuple[bool, str | None]] = is_run_interrupted,
+    # Default False so existing tests (StubPersistence with a fake
+    # listing_pack_id) don't trip the quota gate. server.py turns this on
+    # explicitly when POSTGRES_URL is configured.
+    enforce_quota: bool = False,
+    quota_resolver: Callable[[str], str] = resolve_workspace_for_listing_pack,
+    quota_checker: Callable[..., Any] = check_quota,
+    usage_recorder: Callable[..., str] = record_usage,
 ) -> AsyncIterator[dict]:
     """Run the graph; yield SSE events; persist to Postgres along the way.
 
@@ -80,6 +95,38 @@ async def run_listing_pack_streamed(
         persist: when False (tests), skip all DB calls; run_id is a synthetic uuid.
     """
     cost_cap = Decimal(input_.get("cost_cap_usd") or "0.50")
+
+    # ── quota gate (D28) ────────────────────────────────────────
+    workspace_id: str | None = None
+    quota_snap = None
+    if enforce_quota and persist:
+        try:
+            workspace_id = quota_resolver(listing_pack_id)
+            quota_snap = quota_checker(workspace_id, sku_count=1)
+        except QuotaExceeded as exc:
+            yield _sse(
+                "run.quota_exceeded",
+                {
+                    "listing_pack_id": listing_pack_id,
+                    "workspace_id": exc.workspace_id,
+                    "plan": exc.plan,
+                    "sku_quota": exc.sku_quota,
+                    "sku_used": exc.sku_used,
+                    "message": str(exc),
+                },
+            )
+            return
+        except SubscriptionMissing as exc:
+            yield _sse(
+                "run.quota_unavailable",
+                {
+                    "listing_pack_id": listing_pack_id,
+                    "message": str(exc),
+                },
+            )
+            return
+        except QuotaError as exc:
+            logger.warning("quota check skipped: %s", exc)
 
     if persist:
         run_id = persist_create(
@@ -241,6 +288,29 @@ async def run_listing_pack_streamed(
             cost_spent_usd=_safe_decimal(final_state.get("cost_spent_usd", "0")),
             error=last_error,
         )
+
+    # ── usage record (D28) — only on success ────────────────────
+    if (
+        enforce_quota
+        and persist
+        and workspace_id
+        and terminal == ListingPackStatus.completed.value
+    ):
+        # Was this a within-quota SKU or an overage SKU?
+        in_overage = quota_snap is not None and quota_snap.in_overage
+        event = "sku_overage" if in_overage else "sku_generated"
+        try:
+            usage_recorder(
+                workspace_id=workspace_id,
+                event=event,
+                quantity=1,
+                unit_cost_usd=_safe_decimal(final_state.get("cost_spent_usd", "0")),
+                listing_pack_id=listing_pack_id,
+                agent_run_id=run_id,
+                metadata={"plan_at_run": quota_snap.plan if quota_snap else None},
+            )
+        except Exception:  # noqa: BLE001 — never let usage write block the run
+            logger.exception("failed to record usage for run %s", run_id)
 
     yield _sse(
         "run.completed" if terminal == ListingPackStatus.completed.value else "run.failed",

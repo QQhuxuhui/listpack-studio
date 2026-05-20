@@ -5,7 +5,8 @@ import {
   getUser,
   updateSubscription,
 } from '@/lib/db/queries';
-import type { WorkspaceWithMembers } from '@/lib/db/schema';
+import type { Plan, WorkspaceWithMembers } from '@/lib/db/schema';
+import { mapStripeProductToPlan, getPlan } from './plans';
 
 /**
  * Lazy Stripe client.
@@ -147,20 +148,49 @@ export async function handleSubscriptionChange(
 
   if (subscription.status === 'active' || subscription.status === 'trialing') {
     const item = subscription.items.data[0];
-    const productId = (item?.price?.product as Stripe.Product | undefined)?.id;
-    await updateSubscription(sub.id, {
+    const product = item?.price?.product as Stripe.Product | undefined;
+    const productId = product?.id;
+
+    // Map Stripe product name → plan enum + sku_quota. Falls back to the
+    // current plan if the product name doesn't match the catalog (e.g. a
+    // promo product created out-of-band) so we never accidentally
+    // downgrade a paying customer to 'free'.
+    let plan: Plan | undefined;
+    if (product?.name) {
+      const mapped = mapStripeProductToPlan(product.name);
+      if (mapped) {
+        plan = mapped;
+      } else {
+        console.warn(
+          `Stripe product "${product.name}" not in PLAN_CATALOG; ` +
+            `keeping plan=${sub.plan} for subscription ${sub.id}`,
+        );
+      }
+    }
+
+    const update: Partial<Parameters<typeof updateSubscription>[1]> = {
       stripeSubscriptionId: subscription.id,
       stripeProductId: productId ?? null,
       status: subscription.status,
-    });
+    };
+    if (plan) {
+      update.plan = plan;
+      update.skuQuota = getPlan(plan).skuQuota;
+    }
+    await updateSubscription(sub.id, update);
   } else if (
     subscription.status === 'canceled' ||
     subscription.status === 'unpaid'
   ) {
+    // Don't reset sku_used here — the user might re-subscribe before period
+    // end and we want to preserve their usage history.
     await updateSubscription(sub.id, {
       stripeSubscriptionId: null,
       stripeProductId: null,
       status: subscription.status,
+      // Drop them back to Free quota so future runs hit the gate.
+      plan: 'free',
+      skuQuota: getPlan('free').skuQuota,
     });
   }
 }

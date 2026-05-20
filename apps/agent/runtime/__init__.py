@@ -21,6 +21,19 @@ from .hitl import (
     resume_run,
 )
 from .listing_pack_runner import run_listing_pack_streamed
+from .quota import (
+    PLAN_CATALOG,
+    PlanLimits,
+    QuotaError,
+    QuotaExceeded,
+    QuotaSnapshot,
+    SubscriptionMissing,
+    check_quota,
+    get_workspace_quota,
+    record_usage,
+    reset_sku_used,
+    resolve_workspace_for_listing_pack,
+)
 from .persistence import (
     AgentRunRecord,
     AgentStepRecord,
@@ -32,19 +45,30 @@ from .persistence import (
 )
 
 __all__ = [
+    "PLAN_CATALOG",
     "AgentRunRecord",
     "AgentStepRecord",
     "HITLError",
     "InvalidStateTransition",
+    "PlanLimits",
+    "QuotaError",
+    "QuotaExceeded",
+    "QuotaSnapshot",
     "RunNotFound",
+    "SubscriptionMissing",
     "cancel_run",
+    "check_quota",
     "create_agent_run",
     "fork_run",
     "get_agent_run",
+    "get_workspace_quota",
     "insert_agent_step",
     "is_run_interrupted",
     "list_agent_steps",
     "pause_run",
+    "record_usage",
+    "reset_sku_used",
+    "resolve_workspace_for_listing_pack",
     "resume_run",
     "run_listing_pack_streamed",
     "update_agent_run",

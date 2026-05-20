@@ -381,6 +381,7 @@ async def listing_pack_run(
             },
             listing_pack_id=listing_pack_id,
             persist=persist,
+            enforce_quota=persist,  # gate when DB is reachable (PRD § 00 § 5)
         ):
             yield sse
 

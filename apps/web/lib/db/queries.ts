@@ -60,6 +60,9 @@ export async function updateSubscription(
       | 'stripeProductId'
       | 'currentPeriodStart'
       | 'currentPeriodEnd'
+      | 'skuQuota'
+      | 'skuUsed'
+      | 'overageEnabled'
     >
   >,
 ) {
