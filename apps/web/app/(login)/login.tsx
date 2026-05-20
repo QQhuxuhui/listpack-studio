@@ -109,6 +109,17 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
           </div>
         </form>
 
+        {mode === 'signin' && (
+          <div className="mt-3 text-center">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-orange-600 hover:text-orange-700"
+            >
+              Forgot password?
+            </Link>
+          </div>
+        )}
+
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

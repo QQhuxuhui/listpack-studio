@@ -13,10 +13,12 @@ import {
 } from './client';
 import {
   type OverageWarningProps,
+  type PasswordResetProps,
   type TrialExpiringProps,
   type WelcomeProps,
   type WorkspaceInvitationProps,
   overageWarningEmail,
+  passwordResetEmail,
   trialExpiringEmail,
   welcomeEmail,
   workspaceInvitationEmail,
@@ -50,10 +52,18 @@ export async function sendWorkspaceInvitationEmail(
   return sender(workspaceInvitationEmail(props));
 }
 
+export async function sendPasswordResetEmail(
+  props: PasswordResetProps,
+  sender: EmailSender = defaultSender,
+): Promise<EmailSendResult> {
+  return sender(passwordResetEmail(props));
+}
+
 export type { EmailSender, EmailSendResult } from './client';
 export type {
   WelcomeProps,
   TrialExpiringProps,
   OverageWarningProps,
   WorkspaceInvitationProps,
+  PasswordResetProps,
 } from './templates';

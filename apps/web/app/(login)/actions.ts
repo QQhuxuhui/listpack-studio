@@ -541,6 +541,109 @@ export const inviteWorkspaceMember = validatedActionWithUser(
   },
 );
 
+// ─── password reset (D44) ─────────────────────────────────────
+
+
+const requestPasswordResetSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+/**
+ * Email-link reset flow.
+ *
+ * Always returns success — even when the email isn't registered — so an
+ * attacker can't enumerate accounts. Real users get the email; non-users
+ * see the same success message.
+ */
+export const requestPasswordReset = validatedAction(
+  requestPasswordResetSchema,
+  async (data) => {
+    const { email } = data;
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (user) {
+      try {
+        const { signResetToken } = await import('@/lib/auth/reset-token');
+        const { sendPasswordResetEmail } = await import('@/lib/email');
+        const token = await signResetToken(user.id);
+        const baseUrl = process.env.BASE_URL ?? '';
+        await sendPasswordResetEmail({
+          to: email,
+          resetUrl: `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`,
+        });
+      } catch (err) {
+        // Logged but never surfaced — keeps the enumeration guard intact.
+        console.warn('password reset email failed', err);
+      }
+    }
+
+    return {
+      success: 'If that email is on file, we just sent a reset link.',
+    };
+  },
+);
+
+const resetPasswordSchema = z
+  .object({
+    token: z.string().min(20),
+    password: z.string().min(8),
+    confirmPassword: z.string().min(8),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
+
+/**
+ * Consume a reset token and replace the user's password hash.
+ *
+ * Tokens are single-use *in practice* because we update `updatedAt` on
+ * the user; we don't keep a server-side revocation list. If a user wants
+ * to invalidate previously-issued tokens, they can hit "request new link"
+ * which makes the old one moot once they use the new one.
+ */
+export const resetPassword = validatedAction(
+  resetPasswordSchema,
+  async (data) => {
+    const { token, password } = data;
+
+    let userId: string;
+    try {
+      const { verifyResetToken } = await import('@/lib/auth/reset-token');
+      userId = await verifyResetToken(token);
+    } catch (err) {
+      return {
+        error: `Invalid or expired reset link: ${(err as Error).message}`,
+      };
+    }
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!user || user.deletedAt) {
+      return { error: 'Account not found.' };
+    }
+
+    const passwordHash = await hashPassword(password);
+    await db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    await logActivity(null, user.id, ActivityType.UPDATE_PASSWORD);
+    await setSession(user);
+    redirect('/dashboard');
+  },
+);
+
+
 const updateOverageEnabledSchema = z.object({
   enabled: z.enum(['true', 'false']),
 });

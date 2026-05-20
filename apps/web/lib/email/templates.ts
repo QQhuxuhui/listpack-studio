@@ -93,6 +93,45 @@ help — a real person reads every reply.
   return { to: p.to, subject, html, text };
 }
 
+// ─── password reset ────────────────────────────────────────────
+
+
+export interface PasswordResetProps {
+  to: string;
+  resetUrl: string;
+}
+
+export function passwordResetEmail(p: PasswordResetProps): EmailPayload {
+  const subject = `Reset your ${BRAND} password`;
+  const text = `We received a request to reset the password on your
+${BRAND} account.
+
+Reset it here (valid for 1 hour):
+${p.resetUrl}
+
+If you didn't ask for this, ignore this email — your password stays
+the same. Tokens expire automatically.
+
+— ${BRAND}
+`;
+  const html = shell(
+    `Reset your ${BRAND} password`,
+    `<p>We received a request to reset the password on your ${BRAND} account.</p>
+     <p>
+       <a href="${escapeHtml(p.resetUrl)}"
+          style="display: inline-block; background: #ea580c; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+         Reset password
+       </a>
+     </p>
+     <p style="font-size: 13px; color: #777;">
+       Link is valid for 1 hour. If you didn't ask for this, ignore — your
+       password stays the same.
+     </p>`,
+  );
+  return { to: p.to, subject, html, text };
+}
+
+
 // ─── workspace invitation ─────────────────────────────────────
 
 

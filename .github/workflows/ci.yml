@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs of the same ref when a new commit arrives —
+# saves CI minutes on rebases / force-pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── apps/web ────────────────────────────────────────────────
+  web:
+    name: web (typecheck + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --filter web typecheck
+
+      - name: Unit tests
+        run: pnpm --filter web test
+
+  # ── apps/agent ──────────────────────────────────────────────
+  agent:
+    name: agent (pytest, no PG)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: uv sync (CPU torch wheels)
+        run: uv sync --frozen
+
+      # PG-backed tests auto-skip when POSTGRES_URL is unset (see
+      # tests/runtime/test_persistence_pg.py et al). CI runs the
+      # ~120 unit tests; integration suite runs locally + nightly.
+      - name: pytest (skip PG suites)
+        env:
+          POSTGRES_URL: ''
+        run: uv run pytest -q --tb=short
