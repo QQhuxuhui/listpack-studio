@@ -32,6 +32,8 @@ from graphs.listing_pack import (
 from graphs.listing_pack.nodes import Services
 from graphs.listing_pack.state import make_initial_state
 
+from observability import make_langfuse_callback
+
 from .brand_kit import load_brand_kit_for_listing_pack
 from .hitl import is_run_interrupted
 from .outputs import persist_outputs
@@ -178,8 +180,21 @@ async def run_listing_pack_streamed(
 
     interrupted_status: str | None = None
 
+    # D54: LangFuse trace per run (no-op when LANGFUSE_PUBLIC_KEY unset).
+    # session_id=run_id groups every LLM call into one trace.
+    lf_handler = make_langfuse_callback(
+        run_id=run_id,
+        workspace_id=workspace_id,
+        tags=["listing_pack"],
+    )
+    graph_config: dict[str, Any] = {"metadata": {"run_id": run_id}}
+    if lf_handler is not None:
+        graph_config["callbacks"] = [lf_handler]
+
     try:
-        async for update in graph.astream(initial, stream_mode="updates"):
+        async for update in graph.astream(
+            initial, stream_mode="updates", config=graph_config
+        ):
             # Cooperative HITL: before processing the next node update, check
             # if the user has paused/canceled the run out-of-band.
             interrupted, status = interrupt_checker(run_id)

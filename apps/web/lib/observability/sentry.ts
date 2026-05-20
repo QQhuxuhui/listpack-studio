@@ -1,44 +1,35 @@
 /**
- * Sentry stub — lazy, dependency-free.
+ * Real Sentry wrapper — replaces the D47 shim.
  *
- * We don't actually ship the @sentry/nextjs package yet (adds ~3 MB to
- * the bundle and forces edge / server splits to be configured). This
- * module exposes the same `captureException` / `captureMessage` surface
- * so call sites can be wired today and the real SDK swapped in later
- * with a one-file change.
+ * Initialisation lives in instrumentation.ts (Next 15 convention). This
+ * module exposes the same call-site API the rest of the app already
+ * uses (`captureException`, `captureMessage`, `setUser`) so D47 callers
+ * don't need to change.
  *
- * Behaviour:
- *   - SENTRY_DSN set + @sentry/nextjs installed → forward to real Sentry
- *     (currently a no-op + dev warning; uncomment the dynamic import
- *     when the dep lands).
- *   - SENTRY_DSN unset → silently log to the structured logger so we
- *     don't lose the event in dev / CI.
+ * SENTRY_DSN unset → every export is a no-op + log to the structured
+ * logger so events still surface in dev/CI without a Sentry account.
  */
 
+import * as Sentry from '@sentry/nextjs';
 import { logger } from './logger';
 
-let initWarningEmitted = false;
-
-function warnInitOnce() {
-  if (initWarningEmitted) return;
-  initWarningEmitted = true;
-  if (!process.env.SENTRY_DSN) {
-    logger.debug('sentry: SENTRY_DSN unset; falling back to logger only');
-  } else {
-    logger.warn(
-      'sentry: SENTRY_DSN set but @sentry/nextjs not installed — install + replace shim',
-    );
-  }
+function sentryEnabled(): boolean {
+  return Boolean(process.env.SENTRY_DSN);
 }
 
 export function captureException(
   err: unknown,
   context?: Record<string, unknown>,
 ): void {
-  warnInitOnce();
-  const message = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? err.stack : undefined;
-  logger.error('captureException', { message, stack, ...context });
+  if (!sentryEnabled()) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    logger.error('captureException', { message, stack, ...context });
+    return;
+  }
+  Sentry.captureException(err, {
+    extra: context as Record<string, unknown>,
+  });
 }
 
 export function captureMessage(
@@ -46,16 +37,23 @@ export function captureMessage(
   level: 'info' | 'warning' | 'error' = 'info',
   context?: Record<string, unknown>,
 ): void {
-  warnInitOnce();
-  const ours = level === 'warning' ? 'warn' : level;
-  logger[ours](`captureMessage: ${msg}`, context);
+  if (!sentryEnabled()) {
+    const ours = level === 'warning' ? 'warn' : level;
+    logger[ours](`captureMessage: ${msg}`, context);
+    return;
+  }
+  Sentry.captureMessage(msg, {
+    level,
+    extra: context as Record<string, unknown>,
+  });
 }
 
 export function setUser(user: { id: string; email?: string } | null): void {
-  // Real SDK: Sentry.setUser(user). Here we just track in a module variable
-  // so future logger.child() calls could pick it up.
-  warnInitOnce();
-  _currentUser = user;
+  if (!sentryEnabled()) {
+    _currentUser = user;
+    return;
+  }
+  Sentry.setUser(user);
 }
 
 let _currentUser: { id: string; email?: string } | null = null;

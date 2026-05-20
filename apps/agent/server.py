@@ -67,6 +67,11 @@ else:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
+# D54 — real Sentry init (no-op when SENTRY_DSN unset).
+from observability import init_sentry  # noqa: E402
+
+init_sentry()
+
 AGENT_SERVICE_TOKEN = os.environ.get("AGENT_SERVICE_TOKEN", "")
 
 # Match `platformEnum` in apps/web/lib/db/schema.ts

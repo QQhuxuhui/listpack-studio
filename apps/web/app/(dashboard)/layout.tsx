@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LocaleSwitcher } from '@/components/locale-switcher';
+import { PostHogProvider } from '@/components/posthog-provider';
 import { signOut } from '@/app/(login)/actions';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/db/schema';
@@ -102,9 +103,11 @@ function Header() {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <section className="flex flex-col min-h-screen">
-      <Header />
-      {children}
-    </section>
+    <PostHogProvider>
+      <section className="flex flex-col min-h-screen">
+        <Header />
+        {children}
+      </section>
+    </PostHogProvider>
   );
 }

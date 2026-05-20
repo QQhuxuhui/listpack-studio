@@ -178,6 +178,19 @@ export async function handleSubscriptionChange(
       update.skuQuota = getPlan(plan).skuQuota;
     }
     await updateSubscription(sub.id, update);
+    // D54: PostHog subscription event so revenue funnel attributes the
+    // upgrade to the originating user — distinctId is the workspace id
+    // (we don't have user id on the webhook).
+    try {
+      const { captureServerEvent } = await import('@/lib/analytics/posthog');
+      captureServerEvent(sub.workspaceId, 'subscription_changed', {
+        plan: plan ?? sub.plan,
+        status: subscription.status,
+        stripe_product: product?.name,
+      });
+    } catch {
+      /* never block webhook on analytics */
+    }
   } else if (
     subscription.status === 'canceled' ||
     subscription.status === 'unpaid'

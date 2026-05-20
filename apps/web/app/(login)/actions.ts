@@ -263,6 +263,18 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     console.warn('welcome email failed', err);
   }
 
+  // D54: PostHog signup event — north-star funnel input.
+  try {
+    const { captureServerEvent } = await import('@/lib/analytics/posthog');
+    captureServerEvent(createdUser.id, 'user_signed_up', {
+      workspace_id: workspaceId,
+      had_invite: Boolean(inviteId),
+      plan: 'free',
+    });
+  } catch (err) {
+    console.warn('posthog signup capture failed', err);
+  }
+
   const redirectTo = formData.get('redirect') as string | null;
   if (redirectTo === 'checkout' && createdWorkspace) {
     const priceId = formData.get('priceId') as string;
