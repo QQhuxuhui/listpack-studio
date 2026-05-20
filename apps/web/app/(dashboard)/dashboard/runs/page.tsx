@@ -97,9 +97,12 @@ export default function RecentRunsPage() {
                       >
                         {r.status}
                       </span>
-                      <code className="text-xs text-muted-foreground">
+                      <Link
+                        href={`/dashboard/runs/${r.id}`}
+                        className="text-xs text-muted-foreground hover:underline"
+                      >
                         {r.id.slice(0, 8)}…
-                      </code>
+                      </Link>
                       {r.currentStep && (
                         <span className="text-xs text-muted-foreground">
                           @ {r.currentStep}

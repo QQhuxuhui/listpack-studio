@@ -591,16 +591,25 @@ def make_platform_adapt_node(services: Services):
             platforms,
         )
 
-        outputs = [
-            {
-                "slot": a.slot.value if hasattr(a.slot, "value") else str(a.slot),
-                "width": a.width,
-                "height": a.height,
-                "mime": a.mime,
-                "byte_count": len(a.bytes_data),
-            }
-            for a in adapted
-        ]
+        outputs = []
+        for a in adapted:
+            slot_str = a.slot.value if hasattr(a.slot, "value") else str(a.slot)
+            # slot is "<platform>.<slot_name>"; derive platform for outputs row.
+            platform = slot_str.split(".", 1)[0] if "." in slot_str else slot_str
+            outputs.append(
+                {
+                    "slot": slot_str,
+                    "platform": platform,
+                    "width": a.width,
+                    "height": a.height,
+                    "mime": a.mime,
+                    "byte_count": len(a.bytes_data),
+                    # Raw bytes ride along in-memory so D37 persist_outputs
+                    # can write them to storage. state_to_jsonb_safe strips
+                    # this before the checkpointer JSONB write.
+                    "bytes": a.bytes_data,
+                }
+            )
         return {
             "status": ListingPackStatus.running,
             "current_step": "platform_adapt",

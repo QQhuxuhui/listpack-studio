@@ -266,6 +266,22 @@ def list_agent_steps(run_id: str) -> list[AgentStepRecord]:
 _LARGE_BYTE_KEYS = ("source_image_bytes", "scene_image_bytes")
 
 
+def _strip_bytes(value: Any) -> Any:
+    """Recursively replace `bytes` with {_kind, len} placeholders.
+
+    Walks dicts + lists so we can scrub nested payloads like
+    platform_outputs=[{bytes: b'...'}, ...] that D37 needs in-memory but
+    can't store in JSONB.
+    """
+    if isinstance(value, (bytes, bytearray)):
+        return {"_kind": "bytes_placeholder", "len": len(value)}
+    if isinstance(value, dict):
+        return {k: _strip_bytes(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_strip_bytes(v) for v in value]
+    return value
+
+
 def state_to_jsonb_safe(state: dict) -> dict:
     """Drop / summarise binary fields so the state survives JSONB writes."""
     safe: dict[str, Any] = {}
@@ -276,6 +292,13 @@ def state_to_jsonb_safe(state: dict) -> dict:
             safe[k] = {"_kind": "bytes_placeholder", "len": len(v)}
         elif isinstance(v, Decimal):
             safe[k] = str(v)
+        elif isinstance(v, (dict, list)):
+            scrubbed = _strip_bytes(v)
+            try:
+                json.dumps(scrubbed, default=str)
+                safe[k] = scrubbed
+            except TypeError:
+                safe[k] = str(scrubbed)
         else:
             try:
                 json.dumps(v, default=str)

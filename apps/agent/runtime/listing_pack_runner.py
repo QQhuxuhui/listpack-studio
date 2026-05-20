@@ -33,6 +33,7 @@ from graphs.listing_pack.nodes import Services
 from graphs.listing_pack.state import make_initial_state
 
 from .hitl import is_run_interrupted
+from .outputs import persist_outputs
 from .persistence import (
     create_agent_run,
     insert_agent_step,
@@ -289,6 +290,19 @@ async def run_listing_pack_streamed(
             error=last_error,
         )
 
+    # ── outputs persistence (D37) — only on success ─────────────
+    persisted_outputs: list = []
+    if persist and terminal == ListingPackStatus.completed.value:
+        try:
+            persisted_outputs = persist_outputs(
+                listing_pack_id=listing_pack_id,
+                final_state=final_state,
+            )
+        except Exception:
+            logger.exception(
+                "failed to persist outputs for run %s (continuing)", run_id
+            )
+
     # ── usage record (D28) — only on success ────────────────────
     if (
         enforce_quota
@@ -320,6 +334,16 @@ async def run_listing_pack_streamed(
             "cost_spent_usd": str(final_state.get("cost_spent_usd", "0")),
             "platform_outputs_count": len(final_state.get("platform_outputs") or []),
             "stamped_images_count": len(final_state.get("stamped_images") or []),
+            "outputs": [
+                {
+                    "output_id": o.output_id,
+                    "asset_id": o.asset_id,
+                    "platform": o.platform,
+                    "slot": o.slot,
+                    "public_url": o.public_url,
+                }
+                for o in persisted_outputs
+            ],
             "error": last_error,
         },
     )
