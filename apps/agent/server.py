@@ -41,8 +41,15 @@ from graphs.listing_pack.nodes import Services as ListingPackServices
 from models import ModelRouter
 from models.sparkcode_client import SparkcodeClient
 from runtime import (
+    HITLError,
+    InvalidStateTransition,
+    RunNotFound,
+    cancel_run,
+    fork_run,
     get_agent_run,
     list_agent_steps,
+    pause_run,
+    resume_run,
     run_listing_pack_streamed,
 )
 from scene_spec import SceneJsonExecutor
@@ -419,6 +426,83 @@ async def get_listing_pack_run(run_id: str, request: Request) -> dict:
             for s in steps
         ],
     }
+
+
+# ───────────────────────────────────────────────────────── HITL (D25)
+
+
+class ForkOverrides(BaseModel):
+    plan: dict | None = None
+    cost_cap_usd: str | None = None
+
+
+class CancelBody(BaseModel):
+    reason: str | None = None
+
+
+def _hitl_error_to_http(exc: HITLError) -> HTTPException:
+    if isinstance(exc, RunNotFound):
+        return HTTPException(404, str(exc))
+    if isinstance(exc, InvalidStateTransition):
+        return HTTPException(409, str(exc))
+    return HTTPException(400, str(exc))
+
+
+@app.post("/v1/agent/listing-pack/runs/{run_id}/pause")
+async def hitl_pause(run_id: str, request: Request) -> dict:
+    """Cooperative pause. Runner stops after the current step finishes."""
+    require_service_token(request)
+    try:
+        new_status = await run_in_threadpool(pause_run, run_id)
+    except HITLError as exc:
+        raise _hitl_error_to_http(exc) from exc
+    return {"run_id": run_id, "status": new_status}
+
+
+@app.post("/v1/agent/listing-pack/runs/{run_id}/resume")
+async def hitl_resume(run_id: str, request: Request) -> dict:
+    """Flip back to running. Caller must re-POST /runs to actually re-drive
+    the graph (D25 v1; D34 will swap in LangGraph checkpointer)."""
+    require_service_token(request)
+    try:
+        new_status = await run_in_threadpool(resume_run, run_id)
+    except HITLError as exc:
+        raise _hitl_error_to_http(exc) from exc
+    return {"run_id": run_id, "status": new_status}
+
+
+@app.post("/v1/agent/listing-pack/runs/{run_id}/cancel")
+async def hitl_cancel(run_id: str, request: Request, body: CancelBody | None = None) -> dict:
+    require_service_token(request)
+    reason = body.reason if body else None
+    try:
+        new_status = await run_in_threadpool(cancel_run, run_id, reason=reason)
+    except HITLError as exc:
+        raise _hitl_error_to_http(exc) from exc
+    return {"run_id": run_id, "status": new_status, "reason": reason}
+
+
+@app.post("/v1/agent/listing-pack/runs/{run_id}/fork")
+async def hitl_fork(run_id: str, request: Request, body: ForkOverrides | None = None) -> dict:
+    """Branch off into a new pending run; caller can re-POST /runs against it."""
+    require_service_token(request)
+    overrides: dict | None = None
+    if body:
+        from decimal import Decimal as _Dec
+
+        overrides = {}
+        if body.plan is not None:
+            overrides["plan"] = body.plan
+        if body.cost_cap_usd is not None:
+            try:
+                overrides["cost_cap_usd"] = _Dec(body.cost_cap_usd)
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(400, f"invalid cost_cap_usd: {exc}") from exc
+    try:
+        new_id = await run_in_threadpool(fork_run, run_id, overrides=overrides)
+    except HITLError as exc:
+        raise _hitl_error_to_http(exc) from exc
+    return {"source_run_id": run_id, "new_run_id": new_id, "status": "pending"}
 
 
 # ───────────────────────────────────────────────────────── main

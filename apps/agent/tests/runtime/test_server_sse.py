@@ -130,3 +130,84 @@ def test_post_listing_pack_run_rejects_unsupported_mime(client_with_mocked_servi
         },
     )
     assert resp.status_code == 415
+
+
+# ─── HITL endpoints (D25) — unit, using monkey-patched runtime fns ─
+
+
+def test_hitl_pause_endpoint_returns_paused(client_with_mocked_services, monkeypatch):
+    monkeypatch.setattr(server, "pause_run", lambda run_id: "paused")
+    resp = client_with_mocked_services.post(
+        "/v1/agent/listing-pack/runs/00000000-0000-0000-0000-000000000abc/pause"
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {
+        "run_id": "00000000-0000-0000-0000-000000000abc",
+        "status": "paused",
+    }
+
+
+def test_hitl_pause_unknown_run_returns_404(client_with_mocked_services, monkeypatch):
+    from runtime.hitl import RunNotFound
+
+    def _raise(_id: str):
+        raise RunNotFound("nope")
+
+    monkeypatch.setattr(server, "pause_run", _raise)
+    resp = client_with_mocked_services.post(
+        "/v1/agent/listing-pack/runs/zzz/pause"
+    )
+    assert resp.status_code == 404
+
+
+def test_hitl_pause_terminal_returns_409(client_with_mocked_services, monkeypatch):
+    from runtime.hitl import InvalidStateTransition
+
+    def _raise(_id: str):
+        raise InvalidStateTransition("already canceled")
+
+    monkeypatch.setattr(server, "pause_run", _raise)
+    resp = client_with_mocked_services.post(
+        "/v1/agent/listing-pack/runs/yyy/pause"
+    )
+    assert resp.status_code == 409
+
+
+def test_hitl_cancel_endpoint_with_reason(client_with_mocked_services, monkeypatch):
+    captured: dict = {}
+
+    def _stub(run_id, *, reason=None):
+        captured["run_id"] = run_id
+        captured["reason"] = reason
+        return "canceled"
+
+    monkeypatch.setattr(server, "cancel_run", _stub)
+    resp = client_with_mocked_services.post(
+        "/v1/agent/listing-pack/runs/r1/cancel",
+        json={"reason": "user changed their mind"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "canceled"
+    assert captured == {"run_id": "r1", "reason": "user changed their mind"}
+
+
+def test_hitl_fork_endpoint_returns_new_run_id(client_with_mocked_services, monkeypatch):
+    monkeypatch.setattr(server, "fork_run", lambda src, *, overrides=None: "new-1")
+    resp = client_with_mocked_services.post(
+        "/v1/agent/listing-pack/runs/r1/fork",
+        json={"plan": {"render_banner": True}, "cost_cap_usd": "2.0"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source_run_id"] == "r1"
+    assert body["new_run_id"] == "new-1"
+
+
+def test_hitl_resume_endpoint_returns_running(client_with_mocked_services, monkeypatch):
+    monkeypatch.setattr(server, "resume_run", lambda run_id: "running")
+    resp = client_with_mocked_services.post(
+        "/v1/agent/listing-pack/runs/r1/resume"
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"run_id": "r1", "status": "running"}

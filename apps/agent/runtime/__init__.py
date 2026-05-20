@@ -10,6 +10,16 @@ Public API:
 - run_listing_pack_streamed                — async generator yielding SSE events
 """
 
+from .hitl import (
+    HITLError,
+    InvalidStateTransition,
+    RunNotFound,
+    cancel_run,
+    fork_run,
+    is_run_interrupted,
+    pause_run,
+    resume_run,
+)
 from .listing_pack_runner import run_listing_pack_streamed
 from .persistence import (
     AgentRunRecord,
@@ -24,10 +34,18 @@ from .persistence import (
 __all__ = [
     "AgentRunRecord",
     "AgentStepRecord",
+    "HITLError",
+    "InvalidStateTransition",
+    "RunNotFound",
+    "cancel_run",
     "create_agent_run",
+    "fork_run",
     "get_agent_run",
     "insert_agent_step",
+    "is_run_interrupted",
     "list_agent_steps",
+    "pause_run",
+    "resume_run",
     "run_listing_pack_streamed",
     "update_agent_run",
 ]

@@ -32,6 +32,7 @@ from graphs.listing_pack import (
 from graphs.listing_pack.nodes import Services
 from graphs.listing_pack.state import make_initial_state
 
+from .hitl import is_run_interrupted
 from .persistence import (
     create_agent_run,
     insert_agent_step,
@@ -63,6 +64,7 @@ async def run_listing_pack_streamed(
     persist_create: Callable = _DEFAULT_PERSIST_CREATE,
     persist_update: Callable = _DEFAULT_PERSIST_UPDATE,
     persist_step: Callable = _DEFAULT_PERSIST_STEP,
+    interrupt_checker: Callable[[str], tuple[bool, str | None]] = is_run_interrupted,
 ) -> AsyncIterator[dict]:
     """Run the graph; yield SSE events; persist to Postgres along the way.
 
@@ -114,8 +116,22 @@ async def run_listing_pack_streamed(
     final_state: dict[str, Any] = dict(initial)
     last_error: dict | None = None
 
+    interrupted_status: str | None = None
+
     try:
         async for update in graph.astream(initial, stream_mode="updates"):
+            # Cooperative HITL: before processing the next node update, check
+            # if the user has paused/canceled the run out-of-band.
+            interrupted, status = interrupt_checker(run_id)
+            if interrupted:
+                interrupted_status = status
+                logger.info("run %s interrupted (status=%s)", run_id, status)
+                yield _sse(
+                    "run.interrupted",
+                    {"run_id": run_id, "status": status},
+                )
+                break
+
             # update is a dict {node_name: partial_state_update}
             for node_name, partial in update.items():
                 # Apply update locally so we always have an up-to-date snapshot
@@ -197,7 +213,21 @@ async def run_listing_pack_streamed(
         )
         return
 
-    # Decide terminal status: error present → failed, else completed
+    # Decide terminal status: interrupted > error > completed.
+    if interrupted_status:
+        # paused: leave status alone (HITL endpoint already set it);
+        # canceled: persistence write already happened in cancel_run.
+        # Don't override; emit a no-op terminal SSE.
+        yield _sse(
+            "run.completed" if interrupted_status == "completed" else "run.interrupted",
+            {
+                "run_id": run_id,
+                "status": interrupted_status,
+                "cost_spent_usd": str(final_state.get("cost_spent_usd", "0")),
+            },
+        )
+        return
+
     if last_error is not None:
         terminal = ListingPackStatus.failed.value
     else:
