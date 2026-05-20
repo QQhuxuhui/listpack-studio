@@ -195,6 +195,49 @@ export async function handleSubscriptionChange(
   }
 }
 
+/**
+ * Resets sku_used to 0 and rolls forward the billing window. Triggered by
+ * Stripe's `invoice.payment_succeeded` webhook at the start of each new
+ * monthly period.
+ *
+ * Idempotent — safe to call twice; the second call just sets the same
+ * period_start/period_end values.
+ */
+export async function handleInvoicePaymentSucceeded(
+  invoice: Stripe.Invoice,
+) {
+  const customerId =
+    typeof invoice.customer === 'string'
+      ? invoice.customer
+      : invoice.customer?.id;
+  if (!customerId) {
+    console.warn('invoice.payment_succeeded without customer id; skipping');
+    return;
+  }
+  const sub = await getSubscriptionByStripeCustomerId(customerId);
+  if (!sub) {
+    console.error(
+      `invoice.payment_succeeded: no subscription for customer ${customerId}`,
+    );
+    return;
+  }
+
+  // Stripe SDK v18 moved period boundaries onto invoice.lines.data[].period.
+  const line = invoice.lines?.data?.[0];
+  const periodStart = line?.period?.start
+    ? new Date(line.period.start * 1000)
+    : new Date();
+  const periodEnd = line?.period?.end
+    ? new Date(line.period.end * 1000)
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  await updateSubscription(sub.id, {
+    skuUsed: 0,
+    currentPeriodStart: periodStart,
+    currentPeriodEnd: periodEnd,
+  });
+}
+
 export async function getStripePrices() {
   const prices = await stripe.prices.list({
     expand: ['data.product'],
