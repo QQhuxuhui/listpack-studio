@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { workspaceInvitationEmail } from '../templates';
 import { sendWorkspaceInvitationEmail, type EmailSender } from '../index';
 
-test('workspaceInvitationEmail carries inviter / workspace / role / accept URL', () => {
-  const out = workspaceInvitationEmail({
+test('workspaceInvitationEmail carries inviter / workspace / role / accept URL', async () => {
+  const out = await workspaceInvitationEmail({
     to: 'invitee@example.com',
     inviterName: 'Alice',
     workspaceName: 'Acme Ltd',
@@ -20,17 +20,16 @@ test('workspaceInvitationEmail carries inviter / workspace / role / accept URL',
   assert.match(out.text, /14 days/);
 });
 
-test('workspaceInvitationEmail escapes HTML in inviter / workspace fields', () => {
-  const out = workspaceInvitationEmail({
+test('workspaceInvitationEmail escapes HTML in inviter / workspace fields', async () => {
+  const out = await workspaceInvitationEmail({
     to: 'x@x.com',
     inviterName: '<script>alert(1)</script>',
     workspaceName: '"><img onerror=alert(1)>',
     role: 'admin',
     acceptUrl: 'https://x',
   });
-  // The dangerous bits are <script>, raw <img, and the closing "> that
-  // would break out of the surrounding <strong>. After escaping, none of
-  // these tag boundaries should appear in the output.
+  // React escapes JSX text content automatically; dangerous tags can't
+  // break out of the surrounding markup.
   assert.ok(!out.html.includes('<script>alert(1)</script>'));
   assert.ok(!out.html.includes('<img'));
   // The escaped form must be present, proving the input was processed.

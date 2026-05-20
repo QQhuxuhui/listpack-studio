@@ -28,35 +28,35 @@ export async function sendWelcomeEmail(
   props: WelcomeProps,
   sender: EmailSender = defaultSender,
 ): Promise<EmailSendResult> {
-  return sender(welcomeEmail(props));
+  return sender(await welcomeEmail(props));
 }
 
 export async function sendTrialExpiringEmail(
   props: TrialExpiringProps,
   sender: EmailSender = defaultSender,
 ): Promise<EmailSendResult> {
-  return sender(trialExpiringEmail(props));
+  return sender(await trialExpiringEmail(props));
 }
 
 export async function sendOverageWarningEmail(
   props: OverageWarningProps,
   sender: EmailSender = defaultSender,
 ): Promise<EmailSendResult> {
-  return sender(overageWarningEmail(props));
+  return sender(await overageWarningEmail(props));
 }
 
 export async function sendWorkspaceInvitationEmail(
   props: WorkspaceInvitationProps,
   sender: EmailSender = defaultSender,
 ): Promise<EmailSendResult> {
-  return sender(workspaceInvitationEmail(props));
+  return sender(await workspaceInvitationEmail(props));
 }
 
 export async function sendPasswordResetEmail(
   props: PasswordResetProps,
   sender: EmailSender = defaultSender,
 ): Promise<EmailSendResult> {
-  return sender(passwordResetEmail(props));
+  return sender(await passwordResetEmail(props));
 }
 
 export type { EmailSender, EmailSendResult } from './client';

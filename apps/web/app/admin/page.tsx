@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { RefreshCcw, Search } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -11,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { DataTable } from '@/components/data-table';
 
 interface WorkspaceRow {
   id: string;
@@ -39,6 +41,91 @@ const STATUS_COLOR: Record<string, string> = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+const columns: ColumnDef<WorkspaceRow, unknown>[] = [
+  {
+    id: 'workspace',
+    header: 'Workspace',
+    accessorKey: 'name',
+    cell: ({ row }) => (
+      <>
+        <div className="font-medium">{row.original.name}</div>
+        <div className="text-xs text-muted-foreground">
+          {row.original.slug}
+          {row.original.deletedAt && (
+            <span className="text-red-600 ml-2">deleted</span>
+          )}
+        </div>
+      </>
+    ),
+  },
+  {
+    id: 'owner',
+    header: 'Owner',
+    accessorFn: (r) => `${r.ownerName ?? ''} ${r.ownerEmail ?? ''}`,
+    cell: ({ row }) => (
+      <>
+        <div>{row.original.ownerName || '—'}</div>
+        <div className="text-xs text-muted-foreground">
+          {row.original.ownerEmail}
+        </div>
+      </>
+    ),
+  },
+  {
+    id: 'plan',
+    header: 'Plan',
+    accessorFn: (r) => r.subPlan ?? r.planId,
+    cell: ({ row }) => (
+      <code className="text-xs">{row.original.subPlan ?? row.original.planId}</code>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Status',
+    accessorKey: 'subStatus',
+    cell: ({ row }) => {
+      const s = row.original.subStatus;
+      if (!s) return null;
+      return (
+        <span
+          className={`text-xs font-medium rounded-full px-2 py-0.5 ${
+            STATUS_COLOR[s] ?? 'bg-gray-100 text-gray-700'
+          }`}
+        >
+          {s}
+        </span>
+      );
+    },
+  },
+  {
+    id: 'usage',
+    header: 'Usage',
+    accessorFn: (r) => (r.subUsed ?? 0) / Math.max(r.subQuota ?? 1, 1),
+    cell: ({ row }) =>
+      row.original.subUsed != null && row.original.subQuota != null
+        ? `${row.original.subUsed}/${row.original.subQuota}`
+        : '—',
+  },
+  {
+    id: 'overage',
+    header: 'Overage',
+    accessorKey: 'overageEnabled',
+    cell: ({ row }) => (
+      <span className="text-xs">{row.original.overageEnabled ? 'on' : 'off'}</span>
+    ),
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    accessorKey: 'createdAt',
+    cell: ({ row }) => (
+      <span className="text-xs">
+        {new Date(row.original.createdAt).toLocaleDateString()}
+      </span>
+    ),
+  },
+];
+
 export default function AdminWorkspacesPage() {
   const { data, isLoading, mutate } = useSWR<{ workspaces: WorkspaceRow[] }>(
     '/api/admin/workspaces',
@@ -47,6 +134,9 @@ export default function AdminWorkspacesPage() {
   const [q, setQ] = useState('');
   const rows = data?.workspaces ?? [];
 
+  // Pre-filter using stripe id + slug (tanstack's global filter uses the
+  // visible accessor strings; adding a hidden join here keeps the search
+  // box matching identifiers that aren't surfaced in any column.)
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return rows;
@@ -83,77 +173,15 @@ export default function AdminWorkspacesPage() {
           <CardTitle className="text-sm">
             {isLoading
               ? 'Loading…'
-              : `${filtered.length} of ${rows.length} workspaces`}
+              : `${filtered.length} of ${rows.length} workspaces · click headers to sort`}
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="text-xs text-muted-foreground border-b border-gray-200">
-              <tr>
-                <th className="text-left py-2 pr-3">Workspace</th>
-                <th className="text-left py-2 pr-3">Owner</th>
-                <th className="text-left py-2 pr-3">Plan</th>
-                <th className="text-left py-2 pr-3">Status</th>
-                <th className="text-right py-2 pr-3">Usage</th>
-                <th className="text-left py-2 pr-3">Overage</th>
-                <th className="text-left py-2 pr-3">Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-gray-100 hover:bg-gray-50"
-                >
-                  <td className="py-2 pr-3">
-                    <div className="font-medium">{r.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {r.slug}
-                      {r.deletedAt && (
-                        <span className="text-red-600 ml-2">deleted</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-2 pr-3">
-                    <div>{r.ownerName || '—'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {r.ownerEmail}
-                    </div>
-                  </td>
-                  <td className="py-2 pr-3">
-                    <code className="text-xs">{r.subPlan ?? r.planId}</code>
-                  </td>
-                  <td className="py-2 pr-3">
-                    {r.subStatus && (
-                      <span
-                        className={`text-xs font-medium rounded-full px-2 py-0.5 ${
-                          STATUS_COLOR[r.subStatus] ??
-                          'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {r.subStatus}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-right">
-                    {r.subUsed != null && r.subQuota != null ? (
-                      <>
-                        {r.subUsed}/{r.subQuota}
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">
-                    {r.overageEnabled ? 'on' : 'off'}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">
-                    {new Date(r.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            data={filtered}
+            columns={columns}
+            emptyMessage="No workspaces match the filter."
+          />
         </CardContent>
       </Card>
     </section>

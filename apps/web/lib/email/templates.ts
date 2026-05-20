@@ -1,44 +1,28 @@
 /**
- * Plain-function email templates.
+ * Email templates — D56 upgraded to render via @react-email/components.
  *
- * Each builder returns `{ subject, html, text }`. We keep markup minimal
- * (no React Email at this stage) so the bundle stays small and tests can
- * assert exact strings.
+ * Each builder returns `{ subject, html, text }` — the shape callers
+ * (lib/email/index.ts) already expect. The HTML is produced by rendering
+ * a React Email component (see lib/email/react/*.tsx); the text version
+ * stays hand-rolled because plain-text emails don't get visual quirks
+ * from clients and we want the wording to match exactly what we test.
  *
  * PRD § 5.2: "trial / overage warning must be sent 48h before charge" —
- * the trial-expiring + overage-warning templates carry that copy verbatim.
+ * the trial-expiring + overage-warning templates carry that copy
+ * verbatim in both HTML + text.
  */
 
+import { render } from '@react-email/render';
+import { createElement } from 'react';
+
 import type { EmailPayload } from './client';
+import { OverageWarningEmail } from './react/OverageWarningEmail';
+import { PasswordResetEmail } from './react/PasswordResetEmail';
+import { TrialExpiringEmail } from './react/TrialExpiringEmail';
+import { WelcomeEmail } from './react/WelcomeEmail';
+import { WorkspaceInvitationEmail } from './react/WorkspaceInvitationEmail';
 
 const BRAND = 'ListPack Studio';
-const BRAND_URL = 'https://listpack.studio';
-
-function shell(title: string, body: string): string {
-  return `<!doctype html>
-<html lang="en">
-  <head><meta charset="utf-8" /><title>${escapeHtml(title)}</title></head>
-  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; max-width: 560px; margin: 0 auto; padding: 24px;">
-    <h1 style="font-size: 20px; margin: 0 0 16px;">${escapeHtml(title)}</h1>
-    ${body}
-    <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;" />
-    <p style="font-size: 12px; color: #888;">
-      ${BRAND} · <a href="${BRAND_URL}" style="color: #888;">${BRAND_URL}</a><br />
-      You're receiving this because you signed up at ${BRAND_URL}.
-      <a href="${BRAND_URL}/unsubscribe" style="color: #888;">Unsubscribe</a>.
-    </p>
-  </body>
-</html>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 // ─── welcome ────────────────────────────────────────────────────
 
@@ -50,7 +34,9 @@ export interface WelcomeProps {
   dashboardUrl: string;
 }
 
-export function welcomeEmail(p: WelcomeProps): EmailPayload {
+export async function welcomeEmail(
+  p: WelcomeProps,
+): Promise<EmailPayload> {
   const greet = p.name ? `Hi ${p.name},` : 'Hi there,';
   const subject = `Welcome to ${BRAND} — start with 5 free SKUs`;
   const text = `${greet}
@@ -69,26 +55,12 @@ help — a real person reads every reply.
 
 — The ${BRAND} team
 `;
-  const html = shell(
-    `Welcome to ${BRAND}`,
-    `<p>${escapeHtml(greet)}</p>
-     <p>Welcome to ${BRAND}! Your workspace <strong>${escapeHtml(p.workspaceName)}</strong> is ready.</p>
-     <p><strong>3-step first run:</strong></p>
-     <ol>
-       <li>Upload one product photo (JPG/PNG/WebP, up to 20MB)</li>
-       <li>Pick the platforms you sell on</li>
-       <li>Watch the agent compliance-check, generate, and size your pack</li>
-     </ol>
-     <p>
-       <a href="${escapeHtml(p.dashboardUrl)}"
-          style="display: inline-block; background: #ea580c; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-         Open your dashboard
-       </a>
-     </p>
-     <p style="color: #555;">
-       Free tier includes 5 SKUs / month, no credit card.
-       Reply to this email if you need help — a real person reads every reply.
-     </p>`,
+  const html = await renderToString(
+    createElement(WelcomeEmail, {
+      name: p.name,
+      workspaceName: p.workspaceName,
+      dashboardUrl: p.dashboardUrl,
+    }),
   );
   return { to: p.to, subject, html, text };
 }
@@ -101,7 +73,9 @@ export interface PasswordResetProps {
   resetUrl: string;
 }
 
-export function passwordResetEmail(p: PasswordResetProps): EmailPayload {
+export async function passwordResetEmail(
+  p: PasswordResetProps,
+): Promise<EmailPayload> {
   const subject = `Reset your ${BRAND} password`;
   const text = `We received a request to reset the password on your
 ${BRAND} account.
@@ -114,23 +88,11 @@ the same. Tokens expire automatically.
 
 — ${BRAND}
 `;
-  const html = shell(
-    `Reset your ${BRAND} password`,
-    `<p>We received a request to reset the password on your ${BRAND} account.</p>
-     <p>
-       <a href="${escapeHtml(p.resetUrl)}"
-          style="display: inline-block; background: #ea580c; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-         Reset password
-       </a>
-     </p>
-     <p style="font-size: 13px; color: #777;">
-       Link is valid for 1 hour. If you didn't ask for this, ignore — your
-       password stays the same.
-     </p>`,
+  const html = await renderToString(
+    createElement(PasswordResetEmail, { resetUrl: p.resetUrl }),
   );
   return { to: p.to, subject, html, text };
 }
-
 
 // ─── workspace invitation ─────────────────────────────────────
 
@@ -143,9 +105,9 @@ export interface WorkspaceInvitationProps {
   acceptUrl: string;
 }
 
-export function workspaceInvitationEmail(
+export async function workspaceInvitationEmail(
   p: WorkspaceInvitationProps,
-): EmailPayload {
+): Promise<EmailPayload> {
   const subject = `${p.inviterName} invited you to ${p.workspaceName} on ${BRAND}`;
   const text = `${p.inviterName} invited you to join the ${p.workspaceName}
 workspace on ${BRAND} as ${p.role}.
@@ -158,25 +120,16 @@ invitation expires in 14 days.
 
 — ${BRAND}
 `;
-  const html = shell(
-    `Join ${p.workspaceName} on ${BRAND}`,
-    `<p>${escapeHtml(p.inviterName)} invited you to join
-       <strong>${escapeHtml(p.workspaceName)}</strong> as
-       <strong>${escapeHtml(p.role)}</strong>.</p>
-     <p>
-       <a href="${escapeHtml(p.acceptUrl)}"
-          style="display: inline-block; background: #ea580c; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-         Accept invitation
-       </a>
-     </p>
-     <p style="font-size: 13px; color: #777;">
-       If you weren't expecting this, you can safely ignore — the
-       invitation expires in 14 days.
-     </p>`,
+  const html = await renderToString(
+    createElement(WorkspaceInvitationEmail, {
+      inviterName: p.inviterName,
+      workspaceName: p.workspaceName,
+      role: p.role,
+      acceptUrl: p.acceptUrl,
+    }),
   );
   return { to: p.to, subject, html, text };
 }
-
 
 // ─── trial expiring (PRD § 5.3 must send ≥48h before charge) ─────
 
@@ -189,7 +142,9 @@ export interface TrialExpiringProps {
   manageUrl: string;
 }
 
-export function trialExpiringEmail(p: TrialExpiringProps): EmailPayload {
+export async function trialExpiringEmail(
+  p: TrialExpiringProps,
+): Promise<EmailPayload> {
   const greet = p.name ? `Hi ${p.name},` : 'Hi there,';
   const expiresOn = new Date(p.expiresOnIso).toUTCString();
   const subject = `Your ${p.planName} trial ends ${expiresOn}`;
@@ -206,20 +161,13 @@ agreement (PRD § 5.2 — "no surprise billing").
 
 — ${BRAND}
 `;
-  const html = shell(
-    `Your ${p.planName} trial ends ${expiresOn}`,
-    `<p>${escapeHtml(greet)}</p>
-     <p>Heads up — your <strong>${escapeHtml(p.planName)}</strong> free trial ends on
-     <strong>${escapeHtml(expiresOn)} (UTC)</strong>. After that we'll charge the card
-     on file unless you cancel.</p>
-     <p><a href="${escapeHtml(p.manageUrl)}"
-            style="display: inline-block; background: #111; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-       Manage subscription
-     </a></p>
-     <p style="font-size: 13px; color: #777;">
-       This notice is sent at least 48 hours ahead of the charge per our
-       user agreement — no surprise billing, ever.
-     </p>`,
+  const html = await renderToString(
+    createElement(TrialExpiringEmail, {
+      name: p.name,
+      planName: p.planName,
+      expiresOnIso: p.expiresOnIso,
+      manageUrl: p.manageUrl,
+    }),
   );
   return { to: p.to, subject, html, text };
 }
@@ -237,7 +185,9 @@ export interface OverageWarningProps {
   manageUrl: string;
 }
 
-export function overageWarningEmail(p: OverageWarningProps): EmailPayload {
+export async function overageWarningEmail(
+  p: OverageWarningProps,
+): Promise<EmailPayload> {
   const greet = p.name ? `Hi ${p.name},` : 'Hi there,';
   const subject = `Heads up — you've hit your ${p.planName} SKU quota`;
   const text = `${greet}
@@ -254,21 +204,27 @@ Manage your plan: ${p.manageUrl}
 
 — ${BRAND}
 `;
-  const html = shell(
-    `You've hit your ${p.planName} SKU quota`,
-    `<p>${escapeHtml(greet)}</p>
-     <p>You've used <strong>${p.skuUsed}</strong> of <strong>${p.skuQuota}</strong>
-     SKUs on the ${escapeHtml(p.planName)} plan. Any further SKU this billing period
-     costs <strong>$${p.overagePerSku.toFixed(2)}</strong> each.</p>
-     <ul>
-       <li>Keep going at the overage rate (itemised on your next invoice)</li>
-       <li>Upgrade to a higher plan for a better per-SKU rate</li>
-       <li>Disable overage to halt further generation</li>
-     </ul>
-     <p><a href="${escapeHtml(p.manageUrl)}"
-            style="display: inline-block; background: #ea580c; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-       Manage your plan
-     </a></p>`,
+  const html = await renderToString(
+    createElement(OverageWarningEmail, {
+      name: p.name,
+      planName: p.planName,
+      skuUsed: p.skuUsed,
+      skuQuota: p.skuQuota,
+      overagePerSku: p.overagePerSku,
+      manageUrl: p.manageUrl,
+    }),
   );
   return { to: p.to, subject, html, text };
+}
+
+// ─── render helper ────────────────────────────────────────────
+
+
+// @react-email/render 2.0+ returns Promise<string>. We await it inside
+// each template builder above and expose Promise<EmailPayload> to the
+// world — the email send wrappers (lib/email/index.ts) await us in turn.
+async function renderToString(
+  element: React.ReactElement,
+): Promise<string> {
+  return render(element);
 }

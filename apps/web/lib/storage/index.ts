@@ -5,6 +5,7 @@
  */
 
 import { LocalFsStorage } from './local-fs';
+import { S3Storage } from './s3';
 import type { Storage } from './types';
 
 let _storage: Storage | null = null;
@@ -15,14 +16,19 @@ export function getStorage(): Storage {
   const backend = (process.env.STORAGE_BACKEND ?? 'local').toLowerCase();
   switch (backend) {
     case 's3':
-      throw new Error(
-        'STORAGE_BACKEND=s3 not yet implemented — set STORAGE_BACKEND=local',
-      );
+    case 'r2':
+      _storage = new S3Storage();
+      return _storage;
     case 'local':
     default:
       _storage = new LocalFsStorage();
       return _storage;
   }
+}
+
+/** Test helper — reset the cached singleton between tests. */
+export function _resetStorageCache(): void {
+  _storage = null;
 }
 
 export type { Storage, PutResult } from './types';
