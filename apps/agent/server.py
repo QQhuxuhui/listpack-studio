@@ -55,10 +55,17 @@ from runtime import (
 from scene_spec import SceneJsonExecutor
 
 load_dotenv()
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+
+# D47 — JSON-line logs in production; readable text in dev.
+if os.environ.get("LOG_FORMAT", "").lower() == "json":
+    from observability import install_json_handler
+
+    install_json_handler()
+else:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 AGENT_SERVICE_TOKEN = os.environ.get("AGENT_SERVICE_TOKEN", "")
 

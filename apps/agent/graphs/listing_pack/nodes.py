@@ -284,6 +284,7 @@ def make_scene_json_node(services: Services):
                     "platforms": state["target_platforms"],
                 },
                 constraints=constraints,
+                brand_kit=state.get("brand_kit"),
                 budget=budget,
             )
         except Exception as exc:

@@ -385,6 +385,32 @@ export const agentSteps = pgTable(
   }),
 );
 
+// ─── BRAND KIT (one per workspace v1) ───────────────────────────────
+
+export const brandKits = pgTable(
+  'brand_kits',
+  {
+    id: uuid('id').primaryKey().$defaultFn(newId),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .unique()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 100 }).notNull().default('Default'),
+    logoAssetId: uuid('logo_asset_id').references(() => assets.id, {
+      onDelete: 'set null',
+    }),
+    primaryColor: varchar('primary_color', { length: 7 }),
+    secondaryColor: varchar('secondary_color', { length: 7 }),
+    accentColor: varchar('accent_color', { length: 7 }),
+    fontFamily: varchar('font_family', { length: 100 }),
+    tagline: varchar('tagline', { length: 200 }),
+    /** Free-form additional fields (e.g. brand voice notes, banned words). */
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+);
+
 // ─── COMPLIANCE ──────────────────────────────────────────────────────
 
 export const complianceReports = pgTable(
@@ -657,6 +683,8 @@ export type AgentStep = typeof agentSteps.$inferSelect;
 export type ComplianceReport = typeof complianceReports.$inferSelect;
 export type PlatformRule = typeof platformRules.$inferSelect;
 export type CriticCard = typeof criticCards.$inferSelect;
+export type BrandKit = typeof brandKits.$inferSelect;
+export type NewBrandKit = typeof brandKits.$inferInsert;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;

@@ -32,6 +32,7 @@ from graphs.listing_pack import (
 from graphs.listing_pack.nodes import Services
 from graphs.listing_pack.state import make_initial_state
 
+from .brand_kit import load_brand_kit_for_listing_pack
 from .hitl import is_run_interrupted
 from .outputs import persist_outputs
 from .persistence import (
@@ -78,6 +79,7 @@ async def run_listing_pack_streamed(
     # listing_pack_id) don't trip the quota gate. server.py turns this on
     # explicitly when POSTGRES_URL is configured.
     enforce_quota: bool = False,
+    brand_kit_loader: Callable[[str], dict | None] | None = None,
     quota_resolver: Callable[[str], str] = resolve_workspace_for_listing_pack,
     quota_checker: Callable[..., Any] = check_quota,
     usage_recorder: Callable[..., str] = record_usage,
@@ -142,6 +144,16 @@ async def run_listing_pack_streamed(
 
     # Inject our chosen run_id into the input so state.run_id matches the DB id.
     input_ = {**input_, "run_id": run_id}
+
+    # ── brand kit lookup (D46) — only when we have a real DB ─────
+    if persist and "brand_kit" not in input_:
+        loader = brand_kit_loader or load_brand_kit_for_listing_pack
+        try:
+            kit = loader(listing_pack_id)
+            if kit is not None:
+                input_ = {**input_, "brand_kit": kit}
+        except Exception as exc:  # noqa: BLE001 — never let a kit lookup kill the run
+            logger.warning("brand kit lookup failed: %s", exc)
 
     yield _sse(
         "run.started",

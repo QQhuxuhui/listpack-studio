@@ -47,6 +47,7 @@ class ListingPackInput(TypedDict, total=False):
     target_category: str | None
     user_intent: str | None
     cost_cap_usd: str | None  # Decimal serialised
+    brand_kit: dict[str, Any] | None
 
 
 def _append(left: list, right: list) -> list:
@@ -88,6 +89,7 @@ class ListingPackState(TypedDict, total=False):
     cost_cap_usd: str  # Decimal as str for JSON-safety in checkpointer
 
     # ── progressively populated outputs ──────────────────────────
+    brand_kit: dict[str, Any] | None  # workspace brand kit (D46), null when none set
     plan: dict[str, Any] | None  # PlanSpec.model_dump() — set by plan node (D21)
     compliance_overall: str | None  # 'pass' / 'warn' / 'fail'
     compliance_failures: list[dict[str, Any]]
@@ -119,6 +121,7 @@ def make_initial_state(input_: ListingPackInput) -> ListingPackState:
         target_category=input_.get("target_category"),
         user_intent=input_.get("user_intent"),
         cost_cap_usd=str(input_.get("cost_cap_usd") or "0.50"),
+        brand_kit=input_.get("brand_kit"),
         plan=None,
         compliance_overall=None,
         compliance_failures=[],
