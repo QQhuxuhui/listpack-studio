@@ -138,13 +138,36 @@ def test_whiten_background_fixes_background_white():
     assert result.metadata["pixels_snapped_to_white"] > 0
 
 
-def test_whiten_background_ai_mode_returns_unimplemented_hint():
+def test_whiten_background_ai_mode_runs_or_falls_back_cleanly():
+    """D55: ai_remove_bg now actually runs via rembg. In sandbox/CI where
+    the u2net.onnx model can't be downloaded, the fixer falls back to
+    white_threshold and labels it so callers can tell."""
     img, mime = _jpeg(500, 500)
     fixer = fixer_registry["whiten_background"]
     result = fixer(img, mime, {"method": "ai_remove_bg"})
 
+    # Either the real ai_remove_bg ran (model downloaded) OR it fell
+    # back to white_threshold. Both are acceptable; neither should
+    # return the old "applied: False" stub shape.
+    if result.metadata.get("requested_method") == "ai_remove_bg":
+        # Fallback path: white_threshold ran and reason was captured.
+        assert result.metadata["method"] == "white_threshold"
+        assert "fallback_reason" in result.metadata
+    else:
+        # Real rembg path: produced JPEG with subject pixels counted.
+        assert result.metadata["method"] == "ai_remove_bg"
+        assert "subject_pixels" in result.metadata
+        assert result.mime == "image/jpeg"
+
+
+def test_whiten_background_replicate_mode_needs_token():
+    img, mime = _jpeg(500, 500)
+    fixer = fixer_registry["whiten_background"]
+    result = fixer(img, mime, {"method": "replicate_remove_bg"})
+
+    # Without REPLICATE_API_TOKEN, returns explicit not-configured message.
     assert result.metadata["applied"] is False
-    assert "REPLICATE_API_TOKEN" in result.metadata["hint"]
+    assert "REPLICATE_API_TOKEN" in result.metadata["error"]
 
 
 # ─── crop_to_fill_ratio ─────────────────────────────────────────────

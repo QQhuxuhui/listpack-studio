@@ -27,6 +27,9 @@ dependencies = [
     "python-multipart>=0.0.29",
     "sentry-sdk>=2.60.0",
     "langfuse>=4.6.1",
+    "c2pa-python>=0.32.6",
+    "rembg>=2.0.75",
+    "onnxruntime>=1.26.0",
 ]
 
 [tool.uv.sources]
