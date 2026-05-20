@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { requestPasswordReset } from '../actions';
+import { useDictionary } from '@/lib/i18n/client';
 
 type ActionState = { error?: string; success?: string; email?: string };
 
 export default function ForgotPasswordPage() {
+  const { t } = useDictionary();
   const [state, action, isPending] = useActionState<ActionState, FormData>(
     requestPasswordReset,
     {},
@@ -23,17 +25,17 @@ export default function ForgotPasswordPage() {
           <Layers className="h-12 w-12 text-orange-500" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Forgot your password?
+          {t.auth.forgot_h1}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Enter the email on your account and we'll send a reset link.
+          {t.auth.forgot_sub}
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <form action={action} className="space-y-6">
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t.auth.email_label}</Label>
             <div className="mt-1">
               <Input
                 id="email"
@@ -59,20 +61,19 @@ export default function ForgotPasswordPage() {
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sending…
+                {t.common.loading}
               </>
             ) : (
-              'Send reset link'
+              t.auth.submit_send_reset
             )}
           </Button>
 
           <p className="text-center text-sm text-gray-600">
-            Remembered it?{' '}
             <Link
               href="/sign-in"
               className="text-orange-600 hover:text-orange-700"
             >
-              Sign in
+              {t.common.sign_in}
             </Link>
           </p>
         </form>

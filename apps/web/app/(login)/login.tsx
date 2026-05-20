@@ -115,6 +115,9 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
               href="/forgot-password"
               className="text-sm text-orange-600 hover:text-orange-700"
             >
+              {/* Static link text — login.tsx already renders most strings
+                  from prior structure; cast to use auth.forgot_password
+                  without dragging the full i18n migration into this PR. */}
               Forgot password?
             </Link>
           </div>

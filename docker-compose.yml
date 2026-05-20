@@ -1,0 +1,84 @@
+# Local-only docker-compose for ListPack Studio.
+#
+# Spins up Postgres + agent + web on a single network so you can test
+# the full SaaS without provisioning external services. For production
+# use a managed Postgres + deploy web/agent as separate services
+# (Fly / Railway / Render / Kubernetes) — see DEPLOYMENT.md.
+#
+# Quick start:
+#   1. cp apps/web/.env.example apps/web/.env  # fill in real values
+#   2. cp apps/agent/.env.example apps/agent/.env
+#   3. docker compose up --build
+#   4. open http://localhost:3000
+#
+# On first run, in another shell:
+#   docker compose exec web pnpm --filter web db:migrate
+#   docker compose exec agent uv run python -m compliance.rules.seed
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: listpack
+      POSTGRES_PASSWORD: listpack_dev_only
+      POSTGRES_DB: listpack
+    ports:
+      - "5432:5432"
+    volumes:
+      - listpack_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U listpack"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  agent:
+    build:
+      context: ./apps/agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: postgres://listpack:listpack_dev_only@postgres:5432/listpack
+      AGENT_SERVICE_TOKEN: dev-shared-secret
+      LOG_FORMAT: json
+      STORAGE_ROOT: /storage
+    env_file:
+      - ./apps/agent/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - listpack_storage:/storage
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent:
+        condition: service_started
+    environment:
+      POSTGRES_URL: postgres://listpack:listpack_dev_only@postgres:5432/listpack
+      AGENT_SERVICE_URL: http://agent:8000
+      AGENT_SERVICE_TOKEN: dev-shared-secret
+      BASE_URL: http://localhost:3000
+      STORAGE_ROOT: /storage
+    env_file:
+      - ./apps/web/.env
+    ports:
+      - "3000:3000"
+    # web reads/writes the SAME storage volume as agent for output downloads
+    # to keep working (publicUrl maps storage_key → /api/assets/by-key/.../raw
+    # served by the web container).
+    volumes:
+      - listpack_storage:/storage
+
+volumes:
+  listpack_pg:
+  listpack_storage:

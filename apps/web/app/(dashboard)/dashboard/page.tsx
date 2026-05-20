@@ -24,6 +24,8 @@ import {
 import { customerPortalAction } from '@/lib/payments/actions';
 import type { Member, User, WorkspaceWithMembers } from '@/lib/db/schema';
 import { getPlan } from '@/lib/payments/plans';
+import { useDictionary } from '@/lib/i18n/client';
+import { fmt } from '@/lib/i18n/dictionary';
 
 type ActionState = { error?: string; success?: string };
 
@@ -40,6 +42,7 @@ function SubscriptionSkeleton() {
 }
 
 function PlanAndQuota() {
+  const { t } = useDictionary();
   const { data: ws } = useSWR<WorkspaceWithMembers>('/api/workspace', fetcher);
   const sub = ws?.subscription ?? null;
   const planId = sub?.plan ?? 'free';
@@ -68,7 +71,7 @@ function PlanAndQuota() {
   return (
     <Card className="mb-8">
       <CardHeader>
-        <CardTitle>Plan &amp; Usage</CardTitle>
+        <CardTitle>{t.dashboard.plan_and_usage}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
@@ -80,13 +83,13 @@ function PlanAndQuota() {
             {planId === 'free' && (
               <Link href="/pricing">
                 <Button variant="default" size="sm">
-                  Upgrade
+                  {t.dashboard.upgrade}
                 </Button>
               </Link>
             )}
             <form action={customerPortalAction}>
               <Button type="submit" variant="outline" size="sm">
-                Manage billing
+                {t.dashboard.manage_billing}
               </Button>
             </form>
           </div>
@@ -95,7 +98,7 @@ function PlanAndQuota() {
         <div className="space-y-1">
           <div className="flex justify-between text-sm">
             <span className="font-medium">
-              SKUs used this period: {used} / {quota}
+              {fmt(t.dashboard.skus_used, { used, quota })}
             </span>
             <span className="text-muted-foreground">{usagePct}%</span>
           </div>
@@ -107,18 +110,22 @@ function PlanAndQuota() {
           </div>
           {overUsed && (
             <p className="text-xs text-red-600 mt-2">
-              You're {used - quota} SKUs over your monthly quota.{' '}
+              {fmt(t.dashboard.over_quota, { n: used - quota })}{' '}
               {overageActive
                 ? plan.overagePerSkuUsd
-                  ? `Overage rate: $${plan.overagePerSkuUsd} / SKU.`
-                  : 'Overage not allowed on this plan.'
-                : 'Overage is disabled — further runs will be rejected.'}
+                  ? fmt(t.dashboard.overage_rate_line, {
+                      rate: plan.overagePerSkuUsd,
+                    })
+                  : ''
+                : t.dashboard.overage_disabled_line}
             </p>
           )}
           {!overUsed && plan.overagePerSkuUsd !== null && (
             <p className="text-xs text-muted-foreground mt-2">
-              Beyond {quota} SKUs: ${plan.overagePerSkuUsd} per SKU
-              {sub?.overageEnabled === false ? ' (currently disabled)' : ''}.
+              {fmt(t.dashboard.overage_below_quota_line, {
+                quota,
+                rate: plan.overagePerSkuUsd,
+              })}
             </p>
           )}
         </div>
@@ -131,6 +138,7 @@ function PlanAndQuota() {
 }
 
 function OverageToggle({ enabled }: { enabled: boolean }) {
+  const { t } = useDictionary();
   const [state, action, isPending] = useActionState<
     ActionState,
     FormData
@@ -142,11 +150,11 @@ function OverageToggle({ enabled }: { enabled: boolean }) {
       <input type="hidden" name="enabled" value={next} />
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="font-medium text-sm">Allow overage billing</p>
+          <p className="font-medium text-sm">{t.dashboard.overage_toggle_h}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {enabled
-              ? 'On — runs past quota are billed at the overage rate.'
-              : 'Off — runs past quota are rejected (no surprise charges).'}
+              ? t.dashboard.overage_on_desc
+              : t.dashboard.overage_off_desc}
           </p>
         </div>
         <Button
@@ -155,7 +163,11 @@ function OverageToggle({ enabled }: { enabled: boolean }) {
           size="sm"
           disabled={isPending}
         >
-          {isPending ? 'Saving…' : enabled ? 'Disable' : 'Enable'}
+          {isPending
+            ? t.dashboard.overage_saving
+            : enabled
+              ? t.dashboard.overage_disable
+              : t.dashboard.overage_enable}
         </Button>
       </div>
       {state?.error && <p className="text-xs text-red-600 mt-2">{state.error}</p>}
@@ -367,12 +379,19 @@ function InviteMember() {
   );
 }
 
+function SettingsHeader() {
+  const { t } = useDictionary();
+  return (
+    <h1 className="text-lg lg:text-2xl font-medium mb-6">
+      {t.dashboard.workspace_settings}
+    </h1>
+  );
+}
+
 export default function SettingsPage() {
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium mb-6">
-        Workspace Settings
-      </h1>
+      <SettingsHeader />
       <Suspense fallback={<SubscriptionSkeleton />}>
         <PlanAndQuota />
       </Suspense>

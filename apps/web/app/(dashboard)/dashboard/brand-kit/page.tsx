@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useDictionary } from '@/lib/i18n/client';
 
 type BrandKit = {
   id: string;
@@ -31,6 +32,7 @@ const fetcher = (url: string) =>
   fetch(url).then((res) => res.json() as Promise<Resp>);
 
 export default function BrandKitPage() {
+  const { t } = useDictionary();
   const { data, isLoading, mutate } = useSWR<Resp>(
     '/api/workspace/brand-kit',
     fetcher,
@@ -111,7 +113,7 @@ export default function BrandKitPage() {
         setMessage({ kind: 'err', text: body?.error ?? `HTTP ${res.status}` });
         return;
       }
-      setMessage({ kind: 'ok', text: 'Brand kit saved.' });
+      setMessage({ kind: 'ok', text: t.brand_kit.saved_ok });
       await mutate();
     } finally {
       setSaving(false);
@@ -120,28 +122,23 @@ export default function BrandKitPage() {
 
   return (
     <section className="flex-1 p-4 lg:p-8 max-w-3xl">
-      <h1 className="text-lg lg:text-2xl font-medium mb-2">Brand Kit</h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        These values feed every scene + banner generation as guidance for the
-        agent. Colours flow into the palette directive, the logo is offered
-        for explicit placement, and the tagline shows up on banner-style
-        outputs (Brand plan and above).
-      </p>
+      <h1 className="text-lg lg:text-2xl font-medium mb-2">{t.brand_kit.h1}</h1>
+      <p className="text-sm text-muted-foreground mb-6">{t.brand_kit.sub}</p>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t.common.loading}</p>
       ) : (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Palette className="h-4 w-4" />
-              {data?.brandKit ? 'Edit your brand kit' : 'Create your brand kit'}
+              {data?.brandKit ? t.brand_kit.title_edit : t.brand_kit.title_new}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSave} className="space-y-4">
               <div>
-                <Label htmlFor="name">Kit name</Label>
+                <Label htmlFor="name">{t.brand_kit.kit_name}</Label>
                 <Input
                   id="name"
                   value={name}
@@ -151,7 +148,7 @@ export default function BrandKitPage() {
               </div>
 
               <div>
-                <Label htmlFor="logo">Logo</Label>
+                <Label htmlFor="logo">{t.brand_kit.logo}</Label>
                 <div className="flex items-center gap-4">
                   {logoUrl ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -162,7 +159,7 @@ export default function BrandKitPage() {
                     />
                   ) : (
                     <div className="h-16 w-16 border border-dashed border-gray-300 rounded flex items-center justify-center text-xs text-gray-400">
-                      No logo
+                      {t.brand_kit.no_logo}
                     </div>
                   )}
                   <div className="flex flex-col gap-2">
@@ -184,7 +181,7 @@ export default function BrandKitPage() {
                         }}
                         className="text-xs text-red-600 hover:underline self-start"
                       >
-                        Remove logo
+                        {t.brand_kit.remove_logo}
                       </button>
                     )}
                   </div>
@@ -197,42 +194,42 @@ export default function BrandKitPage() {
               <div className="grid grid-cols-3 gap-3">
                 <ColorField
                   id="primary"
-                  label="Primary"
+                  label={t.brand_kit.primary}
                   value={primary}
                   onChange={setPrimary}
                 />
                 <ColorField
                   id="secondary"
-                  label="Secondary"
+                  label={t.brand_kit.secondary}
                   value={secondary}
                   onChange={setSecondary}
                 />
                 <ColorField
                   id="accent"
-                  label="Accent"
+                  label={t.brand_kit.accent}
                   value={accent}
                   onChange={setAccent}
                 />
               </div>
 
               <div>
-                <Label htmlFor="fontFamily">Font family</Label>
+                <Label htmlFor="fontFamily">{t.brand_kit.font_family}</Label>
                 <Input
                   id="fontFamily"
                   value={fontFamily}
                   onChange={(e) => setFontFamily(e.target.value)}
-                  placeholder="e.g. Inter, Söhne, system-ui"
+                  placeholder={t.brand_kit.font_placeholder}
                   maxLength={100}
                 />
               </div>
 
               <div>
-                <Label htmlFor="tagline">Tagline</Label>
+                <Label htmlFor="tagline">{t.brand_kit.tagline}</Label>
                 <Input
                   id="tagline"
                   value={tagline}
                   onChange={(e) => setTagline(e.target.value)}
-                  placeholder="Used on banner outputs"
+                  placeholder={t.brand_kit.tagline_placeholder}
                   maxLength={200}
                 />
               </div>
@@ -253,12 +250,12 @@ export default function BrandKitPage() {
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving…
+                    {t.brand_kit.saving}
                   </>
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Save brand kit
+                    {t.brand_kit.save_btn}
                   </>
                 )}
               </Button>

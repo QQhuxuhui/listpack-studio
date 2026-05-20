@@ -42,6 +42,122 @@ export type Dictionary = {
     pro: string;
     brand: string;
     most_popular: string;
+    talk_to_sales: string;
+  };
+  nav: {
+    workspace: string;
+    new_run: string;
+    recent_runs: string;
+    connections: string;
+    brand_kit: string;
+    compliance: string;
+    general: string;
+    activity: string;
+    security: string;
+  };
+  dashboard: {
+    workspace_settings: string;
+    plan_and_usage: string;
+    upgrade: string;
+    manage_billing: string;
+    skus_used: string; // "SKUs used this period: {used} / {quota}"
+    over_quota: string; // "You're {n} SKUs over your monthly quota."
+    overage_rate_line: string; // "Overage rate: ${rate} / SKU."
+    overage_disabled_line: string;
+    overage_below_quota_line: string; // "Beyond {quota} SKUs: ${rate} per SKU"
+    overage_toggle_h: string;
+    overage_on_desc: string;
+    overage_off_desc: string;
+    overage_enable: string;
+    overage_disable: string;
+    overage_saving: string;
+  };
+  runs: {
+    list_h1: string;
+    latest_n: string;
+    none_yet_a: string;
+    none_yet_b: string;
+    cost_label: string;
+    cap_label: string;
+    started_label: string;
+    ended_label: string;
+    detail_back: string;
+    detail_outputs_h: string;
+    detail_steps_h: string;
+    detail_no_outputs_completed: string;
+    detail_no_outputs_in_progress: string;
+    detail_planner_h: string;
+    new_h1: string;
+    new_source_h: string;
+    new_file_label: string;
+    new_platforms_label: string;
+    new_intent_label: string;
+    new_cost_cap_label: string;
+    new_start: string;
+    new_running: string;
+    new_pause: string;
+    new_cancel: string;
+    new_progress_h: string;
+  };
+  onboarding: {
+    step_hello: string;
+    step_upload: string;
+    step_running: string;
+    step_done: string;
+    welcome: string; // "Welcome, {name}."
+    intro_p1: string;
+    intro_li1: string;
+    intro_li2: string;
+    intro_li3: string;
+    intro_free_disclosure: string;
+    start_with_photo: string;
+    upload_h: string;
+    upload_photo_label: string;
+    upload_help: string;
+    where_label: string;
+    run_agent: string;
+    maybe_later: string;
+    working: string;
+    waiting_first_step: string;
+    done_completed_h: string;
+    done_other_h: string;
+    done_completed_body: string; // "{n} agent steps completed..."
+    done_other_body: string;
+    view_outputs: string;
+    go_dashboard: string;
+  };
+  connections: {
+    h1: string;
+    connect_shopify_h: string;
+    shop_label: string;
+    shop_placeholder: string;
+    shop_help: string;
+    connect_btn: string;
+    connected_h: string;
+    none_yet: string;
+    disconnect: string;
+    confirm_disconnect: string;
+    invalid_shop: string;
+  };
+  brand_kit: {
+    h1: string;
+    sub: string;
+    title_new: string;
+    title_edit: string;
+    kit_name: string;
+    logo: string;
+    no_logo: string;
+    remove_logo: string;
+    primary: string;
+    secondary: string;
+    accent: string;
+    font_family: string;
+    font_placeholder: string;
+    tagline: string;
+    tagline_placeholder: string;
+    save_btn: string;
+    saving: string;
+    saved_ok: string;
   };
   landing: {
     badge: string;

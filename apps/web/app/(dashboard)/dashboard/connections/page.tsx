@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useDictionary } from '@/lib/i18n/client';
 
 interface ShopifyConnection {
   id: string;
@@ -28,6 +29,7 @@ interface ConnectionsResponse {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function ConnectionsPage() {
+  const { t } = useDictionary();
   const { data, isLoading } = useSWR<ConnectionsResponse>(
     '/api/workspace/connections',
     fetcher,
@@ -42,7 +44,7 @@ export default function ConnectionsPage() {
     setError(null);
     const cleaned = shopInput.trim().toLowerCase();
     if (!cleaned) {
-      setError('Enter a shop domain.');
+      setError(t.connections.shop_help);
       return;
     }
     // Accept either "store" or "store.myshopify.com"; normalise to the latter.
@@ -50,14 +52,14 @@ export default function ConnectionsPage() {
       ? cleaned
       : `${cleaned}.myshopify.com`;
     if (!/^[a-z0-9][a-z0-9-]{0,60}\.myshopify\.com$/.test(shop)) {
-      setError('Invalid shop domain. Use e.g. my-store.myshopify.com');
+      setError(t.connections.invalid_shop);
       return;
     }
     window.location.href = `/api/shopify/oauth/authorize?shop=${encodeURIComponent(shop)}`;
   }
 
   async function disconnect(id: string) {
-    if (!confirm('Disconnect this Shopify store?')) return;
+    if (!confirm(t.connections.confirm_disconnect)) return;
     const res = await fetch(`/api/shopify/connections/${id}`, {
       method: 'DELETE',
     });
@@ -71,36 +73,35 @@ export default function ConnectionsPage() {
   return (
     <section className="flex-1 p-4 lg:p-8 max-w-4xl">
       <h1 className="text-lg lg:text-2xl font-medium mb-6">
-        Platform Connections
+        {t.connections.h1}
       </h1>
 
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Plug className="h-4 w-4" /> Connect a Shopify store
+            <Plug className="h-4 w-4" /> {t.connections.connect_shopify_h}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={startConnect} className="space-y-3">
             <div>
               <Label htmlFor="shop" className="mb-2">
-                Shop domain
+                {t.connections.shop_label}
               </Label>
               <Input
                 id="shop"
                 name="shop"
-                placeholder="my-store.myshopify.com"
+                placeholder={t.connections.shop_placeholder}
                 value={shopInput}
                 onChange={(e) => setShopInput(e.target.value)}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                You'll be redirected to Shopify to approve the install. The
-                redirect comes back here.
+                {t.connections.shop_help}
               </p>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit">
-              Connect Shopify
+              {t.connections.connect_btn}
               <ExternalLink className="ml-2 h-4 w-4" />
             </Button>
           </form>
@@ -109,14 +110,14 @@ export default function ConnectionsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Connected stores</CardTitle>
+          <CardTitle>{t.connections.connected_h}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t.common.loading}</p>
           ) : shopify.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No Shopify stores connected yet.
+              {t.connections.none_yet}
             </p>
           ) : (
             <ul className="divide-y divide-gray-100">
@@ -128,9 +129,8 @@ export default function ConnectionsPage() {
                   <div>
                     <p className="font-medium">{c.shop}</p>
                     <p className="text-xs text-muted-foreground">
-                      Connected{' '}
                       {new Date(c.connectedAt).toLocaleDateString()} ·{' '}
-                      {c.scopes ?? 'unknown scopes'}
+                      {c.scopes ?? '—'}
                     </p>
                   </div>
                   <Button
@@ -139,7 +139,7 @@ export default function ConnectionsPage() {
                     onClick={() => disconnect(c.id)}
                     className="text-red-600 hover:text-red-700"
                   >
-                    <Trash2 className="h-4 w-4 mr-1" /> Disconnect
+                    <Trash2 className="h-4 w-4 mr-1" /> {t.connections.disconnect}
                   </Button>
                 </li>
               ))}

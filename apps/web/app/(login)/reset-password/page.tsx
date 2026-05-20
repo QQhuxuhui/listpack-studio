@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { resetPassword } from '../actions';
+import { useDictionary } from '@/lib/i18n/client';
 
 type ActionState = { error?: string };
 
 function ResetPasswordForm() {
+  const { t } = useDictionary();
   const params = useSearchParams();
   const token = params.get('token') ?? '';
   const [state, action, isPending] = useActionState<ActionState, FormData>(
@@ -27,7 +29,7 @@ function ResetPasswordForm() {
           <Layers className="h-12 w-12 text-orange-500" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Choose a new password
+          {t.auth.reset_h1}
         </h2>
       </div>
 
@@ -47,7 +49,7 @@ function ResetPasswordForm() {
           <form action={action} className="space-y-6">
             <input type="hidden" name="token" value={token} />
             <div>
-              <Label htmlFor="password">New password</Label>
+              <Label htmlFor="password">{t.auth.new_password_label}</Label>
               <Input
                 id="password"
                 name="password"
@@ -58,7 +60,7 @@ function ResetPasswordForm() {
               />
             </div>
             <div>
-              <Label htmlFor="confirmPassword">Confirm new password</Label>
+              <Label htmlFor="confirmPassword">{t.auth.confirm_password_label}</Label>
               <Input
                 id="confirmPassword"
                 name="confirmPassword"
@@ -81,10 +83,10 @@ function ResetPasswordForm() {
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating…
+                  {t.common.loading}
                 </>
               ) : (
-                'Set new password'
+                t.auth.submit_set_new
               )}
             </Button>
 
@@ -93,7 +95,7 @@ function ResetPasswordForm() {
                 href="/sign-in"
                 className="text-orange-600 hover:text-orange-700"
               >
-                Back to sign in
+                {t.common.sign_in}
               </Link>
             </p>
           </form>

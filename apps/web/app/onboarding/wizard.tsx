@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useDictionary } from '@/lib/i18n/client';
+import { fmt } from '@/lib/i18n/dictionary';
 
 const PLATFORM_OPTIONS = ['amazon', 'shopify', 'ebay', 'temu', 'shein'] as const;
 
@@ -32,6 +34,7 @@ type Phase = 'intro' | 'upload' | 'running' | 'done';
 
 export default function OnboardingWizard({ userName }: { userName: string }) {
   const router = useRouter();
+  const { t } = useDictionary();
   const [phase, setPhase] = useState<Phase>('intro');
   const [file, setFile] = useState<File | null>(null);
   const [platforms, setPlatforms] = useState<string[]>(['amazon']);
@@ -130,21 +133,21 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
       {/* Step indicator */}
       <ol className="flex items-center gap-2 text-xs text-muted-foreground mb-8">
         <Step active={phase === 'intro'} done={phase !== 'intro'}>
-          1. Hello
+          {t.onboarding.step_hello}
         </Step>
         <span>·</span>
         <Step
           active={phase === 'upload'}
           done={phase === 'running' || phase === 'done'}
         >
-          2. Upload
+          {t.onboarding.step_upload}
         </Step>
         <span>·</span>
         <Step active={phase === 'running'} done={phase === 'done'}>
-          3. Agent runs
+          {t.onboarding.step_running}
         </Step>
         <span>·</span>
-        <Step active={phase === 'done'}>4. Done</Step>
+        <Step active={phase === 'done'}>{t.onboarding.step_done}</Step>
       </ol>
 
       {phase === 'intro' && (
@@ -152,25 +155,22 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-orange-500" />
-              Welcome, {firstName}.
+              {fmt(t.onboarding.welcome, { name: firstName })}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-gray-700">
-              You're three minutes from your first review-ready listing pack.
-              The agent will:
-            </p>
+            <p className="text-sm text-gray-700">{t.onboarding.intro_p1}</p>
             <ol className="space-y-1 text-sm pl-5 list-decimal text-gray-700">
-              <li>Run a compliance check against the live rule database</li>
-              <li>Plan + generate scene images for each target platform</li>
-              <li>Stamp every image with C2PA AI-disclosure metadata</li>
+              <li>{t.onboarding.intro_li1}</li>
+              <li>{t.onboarding.intro_li2}</li>
+              <li>{t.onboarding.intro_li3}</li>
             </ol>
             <p className="text-xs text-muted-foreground">
-              You're on the Free plan — 5 SKUs per month, no card required.
+              {t.onboarding.intro_free_disclosure}
             </p>
             <div className="pt-2">
               <Button onClick={() => setPhase('upload')}>
-                Start with one photo
+                {t.onboarding.start_with_photo}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
@@ -183,13 +183,13 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ImagePlus className="h-5 w-5 text-orange-500" />
-              Upload your first product photo
+              {t.onboarding.upload_h}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={startRun} className="space-y-4">
               <div>
-                <Label htmlFor="onb-file">Product photo</Label>
+                <Label htmlFor="onb-file">{t.onboarding.upload_photo_label}</Label>
                 <Input
                   id="onb-file"
                   type="file"
@@ -197,12 +197,11 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  JPG / PNG / WebP up to 20 MB. A clean studio shot works best
-                  for first-try platform approval.
+                  {t.onboarding.upload_help}
                 </p>
               </div>
               <div>
-                <Label className="mb-2 block">Where do you sell?</Label>
+                <Label className="mb-2 block">{t.onboarding.where_label}</Label>
                 <div className="flex flex-wrap gap-2">
                   {PLATFORM_OPTIONS.map((p) => (
                     <label
@@ -227,14 +226,14 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
               {error && <p className="text-sm text-red-600">{error}</p>}
               <div className="flex gap-2">
                 <Button type="submit">
-                  Run the agent <PlayCircle className="ml-2 h-4 w-4" />
+                  {t.onboarding.run_agent} <PlayCircle className="ml-2 h-4 w-4" />
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => router.push('/dashboard')}
                 >
-                  Maybe later
+                  {t.onboarding.maybe_later}
                 </Button>
               </div>
             </form>
@@ -247,7 +246,7 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin text-orange-500" />
-              Agent is working…
+              {t.onboarding.working}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -265,7 +264,7 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
               ))}
               {stepNames.length === 0 && (
                 <li className="text-xs text-muted-foreground">
-                  Waiting for the first step…
+                  {t.onboarding.waiting_first_step}
                 </li>
               )}
             </ul>
@@ -280,34 +279,31 @@ export default function OnboardingWizard({ userName }: { userName: string }) {
               {terminal === 'run.completed' ? (
                 <>
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  Your first pack is ready
+                  {t.onboarding.done_completed_h}
                 </>
               ) : (
-                <>Run ended: {terminal?.replace('run.', '')}</>
+                <>{t.onboarding.done_other_h}: {terminal?.replace('run.', '')}</>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {terminal === 'run.completed' ? (
               <p className="text-sm text-gray-700">
-                {stepNames.length} agent steps completed. Outputs are
-                persisted under your workspace — download them from the run
-                detail page.
+                {fmt(t.onboarding.done_completed_body, { n: stepNames.length })}
               </p>
             ) : (
               <p className="text-sm text-red-600">
-                Something stopped the run. Check the dashboard for details, or
-                try again.
+                {t.onboarding.done_other_body}
               </p>
             )}
             <div className="flex gap-2 pt-2">
               {runId && (
                 <Link href={`/dashboard/runs/${runId}`}>
-                  <Button>View outputs</Button>
+                  <Button>{t.onboarding.view_outputs}</Button>
                 </Link>
               )}
               <Link href="/dashboard">
-                <Button variant="outline">Go to dashboard</Button>
+                <Button variant="outline">{t.onboarding.go_dashboard}</Button>
               </Link>
             </div>
           </CardContent>
