@@ -4,7 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Users, Settings, Shield, Activity, Menu } from 'lucide-react';
+import {
+  Users,
+  Settings,
+  Shield,
+  Activity,
+  Menu,
+  PlayCircle,
+  Plug,
+  ShieldCheck,
+  History,
+} from 'lucide-react';
 
 export default function DashboardLayout({
   children
@@ -16,6 +26,10 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: '/dashboard', icon: Users, label: 'Workspace' },
+    { href: '/dashboard/runs/new', icon: PlayCircle, label: 'New run' },
+    { href: '/dashboard/runs', icon: History, label: 'Recent runs' },
+    { href: '/dashboard/connections', icon: Plug, label: 'Connections' },
+    { href: '/dashboard/compliance', icon: ShieldCheck, label: 'Compliance' },
     { href: '/dashboard/general', icon: Settings, label: 'General' },
     { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
     { href: '/dashboard/security', icon: Shield, label: 'Security' }
