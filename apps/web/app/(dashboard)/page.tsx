@@ -11,9 +11,11 @@ import {
   Globe,
 } from 'lucide-react';
 import { publicPlans } from '@/lib/payments/plans';
+import { getDictionary } from '@/lib/i18n/dictionary';
 
-export default function HomePage() {
+export default async function HomePage() {
   const plans = publicPlans();
+  const { t } = await getDictionary();
 
   return (
     <main className="bg-white">
@@ -21,24 +23,21 @@ export default function HomePage() {
       <section className="py-20 sm:py-24">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium mb-6">
-            <Sparkles className="h-3.5 w-3.5" /> Listing Pack Agent · v1
+            <Sparkles className="h-3.5 w-3.5" /> {t.landing.badge}
           </span>
           <h1 className="text-4xl font-bold text-gray-900 tracking-tight sm:text-5xl lg:text-6xl">
-            One photo in.{' '}
+            {t.landing.hero_h1_a}{' '}
             <span className="block text-orange-500">
-              Review-ready listings out.
+              {t.landing.hero_h1_b}
             </span>
           </h1>
           <p className="mt-6 text-lg text-gray-600 max-w-2xl mx-auto">
-            ListPack Studio turns a single product photo into compliance-checked
-            listings for Amazon, Shopify, eBay, Temu and SHEIN — main image,
-            multi-platform sizing, A+ content and C2PA-stamped AI disclosure,
-            all in one run.
+            {t.landing.hero_sub}
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/sign-up">
               <Button size="lg" className="rounded-full text-base px-6">
-                Start free — 5 SKUs / month
+                {t.landing.cta_start_free}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
@@ -48,13 +47,11 @@ export default function HomePage() {
                 variant="outline"
                 className="rounded-full text-base px-6"
               >
-                See pricing
+                {t.landing.cta_see_pricing}
               </Button>
             </Link>
           </div>
-          <p className="mt-4 text-xs text-gray-500">
-            No credit card · 7-day refund on every paid tier · cancel anytime
-          </p>
+          <p className="mt-4 text-xs text-gray-500">{t.landing.trust_line}</p>
         </div>
       </section>
 
@@ -62,7 +59,7 @@ export default function HomePage() {
       <section className="py-8 bg-gray-50 border-y border-gray-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500 mb-4 uppercase tracking-wider">
-            One run, five marketplaces
+            {t.landing.platforms_label}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-gray-700 font-medium">
             <span>Amazon</span>
@@ -82,31 +79,29 @@ export default function HomePage() {
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-semibold text-gray-900 text-center mb-3">
-            From photo to first-pass review in 3 steps
+            {t.landing.how_h2}
           </h2>
           <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
-            Our agent runs compliance, image generation, multi-platform sizing
-            and AI-disclosure stamping as a single graph — you watch each step
-            stream in real time.
+            {t.landing.how_sub}
           </p>
           <div className="grid md:grid-cols-3 gap-8">
             <Step
               n={1}
               icon={<ImageIcon className="h-5 w-5" />}
-              title="Upload one product photo"
-              body="Drop a JPG / PNG / WebP up to 20MB. We check it against the live Amazon / Shopify rule database before any pixel is generated."
+              title={t.landing.step1_title}
+              body={t.landing.step1_body}
             />
             <Step
               n={2}
               icon={<Workflow className="h-5 w-5" />}
-              title="Agent plans, generates, refines"
-              body="A LangGraph agent picks the right scene template, generates the hero shot, runs a critic loop to fix anything questionable, then resizes for each platform."
+              title={t.landing.step2_title}
+              body={t.landing.step2_body}
             />
             <Step
               n={3}
               icon={<Layers className="h-5 w-5" />}
-              title="Export review-ready packs"
-              body="Download per-platform image bundles + the AI-disclosure C2PA metadata. Push to Shopify directly (Brand tier) or hand off via CSV."
+              title={t.landing.step3_title}
+              body={t.landing.step3_body}
             />
           </div>
         </div>
@@ -116,7 +111,7 @@ export default function HomePage() {
       <section className="py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-semibold text-gray-900 text-center mb-12">
-            Why teams pick ListPack over fragmented tools
+            {t.landing.values_h2}
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <Value
@@ -157,11 +152,10 @@ export default function HomePage() {
       <section className="py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-semibold text-gray-900 mb-3">
-            Pricing that scales with your catalogue
+            {t.landing.pricing_teaser_h2}
           </h2>
           <p className="text-gray-600 mb-10 max-w-2xl mx-auto">
-            Start free, upgrade when the SKUs add up. Overage rates are
-            calibrated so you never pay more than the next tier.
+            {t.landing.pricing_teaser_sub}
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {plans.map((plan) => (
@@ -198,7 +192,7 @@ export default function HomePage() {
           </div>
           <Link href="/pricing" className="inline-block mt-8">
             <Button variant="outline" className="rounded-full">
-              See full pricing
+              {t.landing.pricing_teaser_link}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>
@@ -236,15 +230,12 @@ export default function HomePage() {
       <section className="py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-semibold text-gray-900 mb-3">
-            Start with 5 free SKUs — no credit card
+            {t.landing.final_cta_h2}
           </h2>
-          <p className="text-gray-600 mb-8">
-            Try the full agent against your real product photos in under 3
-            minutes.
-          </p>
+          <p className="text-gray-600 mb-8">{t.landing.final_cta_sub}</p>
           <Link href="/sign-up">
             <Button size="lg" className="rounded-full text-base px-8">
-              Create your free account
+              {t.landing.final_cta_btn}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>

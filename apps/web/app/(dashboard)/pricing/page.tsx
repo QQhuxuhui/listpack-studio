@@ -2,6 +2,8 @@ import { checkoutAction } from '@/lib/payments/actions';
 import { Check } from 'lucide-react';
 import { getStripePrices, getStripeProducts } from '@/lib/payments/stripe';
 import { publicPlans, type PlanDef } from '@/lib/payments/plans';
+import { getDictionary, fmt } from '@/lib/i18n/dictionary';
+import type { Dictionary } from '@/lib/i18n/types';
 import { SubmitButton } from './submit-button';
 
 // Prices are fresh for one hour max
@@ -12,6 +14,7 @@ interface PricedPlan extends PlanDef {
 }
 
 export default async function PricingPage() {
+  const { t } = await getDictionary();
   let stripePriceByProductName = new Map<string, string>();
 
   try {
@@ -38,31 +41,28 @@ export default async function PricingPage() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-semibold text-gray-900 mb-3">
-          Simple, transparent pricing
-        </h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">
-          Pay-as-you-grow. No long-term contracts. Cancel anytime — we keep
-          your data exportable for 30 days.
-        </p>
+        <h1 className="text-4xl font-semibold text-gray-900 mb-3">{t.pricing.h1}</h1>
+        <p className="text-gray-600 max-w-2xl mx-auto">{t.pricing.sub}</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto">
         {plans.map((plan) => (
-          <PricingCard key={plan.id} plan={plan} />
+          <PricingCard key={plan.id} plan={plan} t={t} />
         ))}
       </div>
 
       <p className="text-center text-sm text-gray-500 mt-12">
-        Need more? <a href="/contact" className="underline">Talk to sales</a>{' '}
-        about Agency ($499/mo, 2500 SKUs) or Enterprise (custom volume, SLA,
-        private LoRA).
+        {t.pricing.sales_footer_a}{' '}
+        <a href="/contact" className="underline">
+          {t.common.sign_in === '登录' ? '联系销售' : 'Talk to sales'}
+        </a>{' '}
+        {t.pricing.sales_footer_b}
       </p>
     </main>
   );
 }
 
-function PricingCard({ plan }: { plan: PricedPlan }) {
+function PricingCard({ plan, t }: { plan: PricedPlan; t: Dictionary }) {
   const isFree = plan.monthlyPriceCents === 0;
   const isPro = plan.id === 'pro';
 
@@ -76,7 +76,7 @@ function PricingCard({ plan }: { plan: PricedPlan }) {
     >
       {isPro && (
         <span className="absolute -top-3 right-4 bg-orange-500 text-white text-xs font-semibold px-2 py-1 rounded-full">
-          Most popular
+          {t.common.most_popular}
         </span>
       )}
       <h2 className="text-xl font-semibold text-gray-900 mb-1">
@@ -84,8 +84,8 @@ function PricingCard({ plan }: { plan: PricedPlan }) {
       </h2>
       <p className="text-sm text-gray-600 mb-4">
         {isFree
-          ? 'No credit card required'
-          : `${plan.trialDays}-day free trial`}
+          ? t.pricing.no_card
+          : fmt(t.pricing.trial_days, { n: plan.trialDays })}
       </p>
       <p className="text-4xl font-semibold text-gray-900 mb-1">
         {plan.monthlyPriceCents !== null
@@ -96,10 +96,10 @@ function PricingCard({ plan }: { plan: PricedPlan }) {
         )}
       </p>
       <p className="text-sm text-gray-600 mb-6">
-        Includes {plan.skuQuota} SKUs / month
+        {fmt(t.pricing.includes_skus, { n: plan.skuQuota })}
         {plan.overagePerSkuUsd !== null
-          ? ` · then $${plan.overagePerSkuUsd}/SKU`
-          : ' · no overage'}
+          ? fmt(t.pricing.overage_rate, { rate: plan.overagePerSkuUsd })
+          : t.pricing.no_overage}
       </p>
       <ul className="space-y-3 mb-8 flex-1">
         {plan.features.map((feature, i) => (
@@ -114,7 +114,7 @@ function PricingCard({ plan }: { plan: PricedPlan }) {
           href="/sign-up"
           className="block text-center px-4 py-2 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800"
         >
-          Start free
+          {t.pricing.start_free}
         </a>
       ) : plan.stripePriceId ? (
         <form action={checkoutAction}>
@@ -123,7 +123,7 @@ function PricingCard({ plan }: { plan: PricedPlan }) {
         </form>
       ) : (
         <p className="text-xs text-gray-500 text-center">
-          Pricing setup in progress
+          {t.pricing.setup_in_progress}
         </p>
       )}
     </div>

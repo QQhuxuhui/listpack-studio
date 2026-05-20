@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { LocaleSwitcher } from '@/components/locale-switcher';
 import { signOut } from '@/app/(login)/actions';
 import { useRouter } from 'next/navigation';
 import { User } from '@/lib/db/schema';
@@ -89,6 +90,7 @@ function Header() {
           </span>
         </Link>
         <div className="flex items-center space-x-4">
+          <LocaleSwitcher />
           <Suspense fallback={<div className="h-9" />}>
             <UserMenu />
           </Suspense>
