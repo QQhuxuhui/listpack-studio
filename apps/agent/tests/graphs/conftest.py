@@ -15,6 +15,8 @@ from PIL import Image
 
 from compliance.schemas import RuleSeverity, RuleSpec
 from generators import (
+    APlusBuilderExecutor,
+    BannerExecutor,
     C2PAStamper,
     ImageExecutor,
     InMemoryImageCache,
@@ -148,6 +150,8 @@ def mocked_services(mock_canned_client: CannedSceneClient) -> Services:
         image_executor=image_exec,
         platform_adapter=PlatformAdapter(),
         c2pa_stamper=C2PAStamper(),
+        a_plus_builder=APlusBuilderExecutor(),
+        banner_executor=BannerExecutor(),
         rules_loader=_no_op_rules_loader,
     )
 

@@ -29,11 +29,22 @@ from compliance.engine import run_compliance_check
 from compliance.loader import load_active_rules
 from compliance.schemas import ComplianceReport
 from generators import (
+    APlusBuilderExecutor,
+    BannerExecutor,
     C2PAStamper,
     GeneratedImage,
     ImageExecutor,
     PlatformAdapter,
     PlatformSlot,
+)
+from generators.a_plus import HeroModule
+from generators.banner import (
+    BackgroundImageLayer,
+    Canvas,
+    CompositionSpec,
+    FontSpec,
+    Position,
+    TextLayer,
 )
 from models.cost import CostBudget
 from models.router import ModelRouter
@@ -75,6 +86,8 @@ class Services:
     c2pa_stamper: C2PAStamper
     planner: Planner | None = None  # D21; defaults to None so old tests still work
     critic: Critic | None = None  # D22-23
+    a_plus_builder: APlusBuilderExecutor | None = None  # D52; None → node no-ops
+    banner_executor: BannerExecutor | None = None  # D52; None → node no-ops
     # rules_loader can be a function so tests can stub the DB call without
     # mocking psycopg.
     rules_loader: Callable[..., list] = field(default=load_active_rules)
@@ -569,6 +582,264 @@ def make_refine_loop_node(
         }
 
     return refine_loop
+
+
+# ── a_plus_build (D52) ────────────────────────────────────────────
+
+
+def _derive_a_plus_title(state: ListingPackState) -> tuple[str, str | None]:
+    """Build (title, subtitle) for the Hero module from state.
+
+    v1 keeps it deterministic — first 60 chars of user_intent (or
+    category-aware default) becomes the title; brand_kit.tagline (when
+    present) feeds the subtitle. v2 will route this through an LLM copy
+    pass for category-specific punchier copy.
+    """
+    intent = (state.get("user_intent") or "").strip()
+    category = state.get("target_category")
+    if intent:
+        title = intent[:60]
+    elif category:
+        title = f"Premium {category.replace('_', ' ').title()}"
+    else:
+        title = "Discover the difference"
+
+    brand_kit = state.get("brand_kit") or {}
+    subtitle = brand_kit.get("tagline") if isinstance(brand_kit, dict) else None
+    return title, subtitle
+
+
+def make_a_plus_node(services: Services):
+    """Render an Amazon A+ Hero module from the scene image.
+
+    Skip conditions (each returns a single 'skipped' step_log entry,
+    no state mutation):
+      - services.a_plus_builder is None (legacy / dev without renderer)
+      - plan.render_a_plus is False (planner decided this run doesn't
+        need A+)
+      - scene_image_bytes missing (upstream failure)
+    """
+
+    async def a_plus_build(state: ListingPackState) -> dict:
+        started = _now_iso()
+
+        if services.a_plus_builder is None:
+            return _skip("a_plus_build", "no a_plus_builder configured", started)
+
+        plan = state.get("plan") or {}
+        if not plan.get("render_a_plus", False):
+            return _skip("a_plus_build", "plan.render_a_plus=False", started)
+
+        scene_bytes = state.get("scene_image_bytes")
+        if not scene_bytes:
+            return _skip("a_plus_build", "no scene_image_bytes", started)
+
+        title, subtitle = _derive_a_plus_title(state)
+
+        def _sync():
+            mod = HeroModule(
+                background_image_bytes=scene_bytes,
+                background_mime="image/png",
+                title=title,
+                subtitle=subtitle,
+                text_position="overlay-left",
+            )
+            return services.a_plus_builder.render_hero(mod)
+
+        try:
+            rendered = await asyncio.to_thread(_sync)
+        except Exception as exc:
+            logger.exception("a_plus_build failed")
+            return {
+                "current_step": "a_plus_build",
+                "step_log": [
+                    _step_log(
+                        "a_plus_build",
+                        status="failed",
+                        message=str(exc),
+                        started_at=started,
+                        ended_at=_now_iso(),
+                    )
+                ],
+            }
+
+        # Append to platform_outputs so D37 persist_outputs picks it up
+        # and writes it as an `outputs` row (platform=amazon, slot=a_plus.hero).
+        existing = list(state.get("platform_outputs") or [])
+        existing.append(
+            {
+                "slot": "amazon.a_plus.hero",
+                "platform": "amazon",
+                "width": rendered.width,
+                "height": rendered.height,
+                "mime": rendered.mime,
+                "byte_count": len(rendered.image_bytes),
+                "bytes": rendered.image_bytes,
+                "metadata": {
+                    "module_type": rendered.module_type.value,
+                    "text_area_pct": rendered.text_area_pct,
+                    "title": title,
+                    "subtitle": subtitle,
+                },
+            }
+        )
+
+        return {
+            "current_step": "a_plus_build",
+            "platform_outputs": existing,
+            "step_log": [
+                _step_log(
+                    "a_plus_build",
+                    status="completed",
+                    message=(
+                        f"hero {rendered.width}×{rendered.height} "
+                        f"(text {rendered.text_area_pct:.1%})"
+                    ),
+                    started_at=started,
+                    ended_at=_now_iso(),
+                )
+            ],
+        }
+
+    return a_plus_build
+
+
+# ── banner_build (D52) ────────────────────────────────────────────
+
+
+def _derive_banner_text(state: ListingPackState) -> str:
+    """Single text line for the banner — tagline > intent > generic."""
+    brand_kit = state.get("brand_kit") or {}
+    tagline = brand_kit.get("tagline") if isinstance(brand_kit, dict) else None
+    if tagline:
+        return tagline
+    intent = (state.get("user_intent") or "").strip()
+    if intent:
+        return intent[:80]
+    return "Shop the new collection"
+
+
+def make_banner_node(services: Services):
+    """Compose a hero banner (Shopify-sized 1500×500) from scene image
+    + brand tagline. Skipped under the same rules as a_plus_build."""
+
+    async def banner_build(state: ListingPackState) -> dict:
+        started = _now_iso()
+
+        if services.banner_executor is None:
+            return _skip("banner_build", "no banner_executor configured", started)
+
+        plan = state.get("plan") or {}
+        if not plan.get("render_banner", False):
+            return _skip("banner_build", "plan.render_banner=False", started)
+
+        scene_bytes = state.get("scene_image_bytes")
+        if not scene_bytes:
+            return _skip("banner_build", "no scene_image_bytes", started)
+
+        brand_kit = state.get("brand_kit") or {}
+        text_color = (
+            brand_kit.get("primary_color")
+            if isinstance(brand_kit, dict)
+            else None
+        ) or "#FFFFFF"
+        banner_text = _derive_banner_text(state)
+
+        def _sync():
+            spec = CompositionSpec(
+                canvas=Canvas(width=1500, height=500, background_color="#FFFFFF"),
+                layers=[
+                    BackgroundImageLayer(
+                        id="bg",
+                        z_index=0,
+                        image_bytes=scene_bytes,
+                        image_mime="image/png",
+                        opacity=1.0,
+                    ),
+                    TextLayer(
+                        id="headline",
+                        z_index=10,
+                        content=banner_text,
+                        position=Position(x=60, y=200),
+                        color=text_color,
+                        font=FontSpec(family="Inter", size_px=72, weight="extra-bold"),
+                        text_align="left",
+                        padding=12,
+                    ),
+                ],
+            )
+            return services.banner_executor.render(spec)
+
+        try:
+            rendered = await asyncio.to_thread(_sync)
+        except Exception as exc:
+            logger.exception("banner_build failed")
+            return {
+                "current_step": "banner_build",
+                "step_log": [
+                    _step_log(
+                        "banner_build",
+                        status="failed",
+                        message=str(exc),
+                        started_at=started,
+                        ended_at=_now_iso(),
+                    )
+                ],
+            }
+
+        # Banner is platform-agnostic but conventionally tagged "shopify"
+        # (Shopify hero slider is the canonical 1500×500 slot). D37
+        # persist_outputs writes it as an outputs row.
+        existing = list(state.get("platform_outputs") or [])
+        existing.append(
+            {
+                "slot": "shopify.banner.hero",
+                "platform": "shopify",
+                "width": rendered.canvas_size[0],
+                "height": rendered.canvas_size[1],
+                "mime": rendered.png_mime,
+                "byte_count": len(rendered.png_bytes),
+                "bytes": rendered.png_bytes,
+                "metadata": {
+                    "layer_count": rendered.layer_count,
+                    "text": banner_text,
+                },
+            }
+        )
+
+        return {
+            "current_step": "banner_build",
+            "platform_outputs": existing,
+            "step_log": [
+                _step_log(
+                    "banner_build",
+                    status="completed",
+                    message=(
+                        f"{rendered.canvas_size[0]}×{rendered.canvas_size[1]} "
+                        f"({rendered.layer_count} layers)"
+                    ),
+                    started_at=started,
+                    ended_at=_now_iso(),
+                )
+            ],
+        }
+
+    return banner_build
+
+
+def _skip(step: str, reason: str, started: str) -> dict:
+    return {
+        "current_step": step,
+        "step_log": [
+            _step_log(
+                step,
+                status="skipped",
+                message=reason,
+                started_at=started,
+                ended_at=_now_iso(),
+            )
+        ],
+    }
 
 
 # ── platform_adapt (multi-size) ───────────────────────────────────

@@ -21,6 +21,8 @@ from langgraph.graph import END, START, StateGraph
 
 from .nodes import (
     Services,
+    make_a_plus_node,
+    make_banner_node,
     make_c2pa_stamp_node,
     make_compliance_check_node,
     make_image_gen_node,
@@ -59,6 +61,13 @@ def build_graph(services: Services):
     g.add_node("scene_json", make_scene_json_node(services))
     g.add_node("image_gen", make_image_gen_node(services))
     g.add_node("refine_loop", make_refine_loop_node(services))
+    # D52: A+ Content + Banner. Each node self-skips when:
+    #   - services has no executor (dev / legacy)
+    #   - plan.render_a_plus / render_banner is False
+    #   - scene_image_bytes missing (upstream failure)
+    # so they're safe to leave on the linear chain.
+    g.add_node("a_plus_build", make_a_plus_node(services))
+    g.add_node("banner_build", make_banner_node(services))
     g.add_node("platform_adapt", make_platform_adapt_node(services))
     g.add_node("c2pa_stamp", make_c2pa_stamp_node(services))
 
@@ -74,8 +83,13 @@ def build_graph(services: Services):
     )
     g.add_edge("scene_json", "image_gen")
     g.add_edge("image_gen", "refine_loop")
+    # platform_adapt OVERWRITES platform_outputs with its sized variants;
+    # a_plus + banner therefore must run AFTER it so they can append
+    # their composed pieces onto the adapter's per-platform slots.
     g.add_edge("refine_loop", "platform_adapt")
-    g.add_edge("platform_adapt", "c2pa_stamp")
+    g.add_edge("platform_adapt", "a_plus_build")
+    g.add_edge("a_plus_build", "banner_build")
+    g.add_edge("banner_build", "c2pa_stamp")
     g.add_edge("c2pa_stamp", END)
 
     return g.compile()
