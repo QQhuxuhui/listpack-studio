@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { AlertCircle, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, ShieldAlert, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -31,13 +31,29 @@ type RuleResult = {
   source_url: string | null;
 };
 
+type FixSuggestion = {
+  /** Detector type that flagged the rule — e.g. "background_color". */
+  rule_key?: string;
+  /** Fixer to apply — e.g. "whiten_background". */
+  type: string;
+  /** Fixer-specific parameters (tolerances, target dimensions, etc.). */
+  spec?: Record<string, unknown>;
+};
+
 type ComplianceReport = {
   target_platform: Platform;
   target_category: string | null;
   overall: 'pass' | 'warn' | 'fail';
   rule_results: RuleResult[];
-  fix_suggestions: Array<Record<string, unknown>>;
+  fix_suggestions: FixSuggestion[];
   rule_set_version: number;
+};
+
+type AutoFixResult = {
+  image_base64: string;
+  mime: string;
+  size_bytes: number;
+  applied: Array<{ type: string; metadata: Record<string, unknown> }>;
 };
 
 const PLATFORMS: Platform[] = ['amazon', 'shopify', 'ebay', 'temu', 'shein'];
@@ -112,6 +128,53 @@ export default function CompliancePage() {
       { failed: [] as RuleResult[], warn: [] as RuleResult[], passed: [] as RuleResult[] },
     );
   }, [report]);
+
+  // ── auto-fix state ────────────────────────────────────────────
+  const [fixing, setFixing] = useState(false);
+  const [fixResult, setFixResult] = useState<AutoFixResult | null>(null);
+  const [fixError, setFixError] = useState<string | null>(null);
+
+  async function applyFixes() {
+    if (!file || !report) return;
+    setFixError(null);
+    setFixResult(null);
+    setFixing(true);
+    try {
+      const fd = new FormData();
+      fd.set('file', file);
+      fd.set('actions', JSON.stringify(report.fix_suggestions ?? []));
+      const res = await fetch('/api/agent/compliance/auto-fix', {
+        method: 'POST',
+        body: fd,
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setFixError(body?.error?.message ?? `HTTP ${res.status}`);
+        return;
+      }
+      setFixResult(body as AutoFixResult);
+    } catch (err) {
+      setFixError((err as Error).message);
+    } finally {
+      setFixing(false);
+    }
+  }
+
+  async function recheckWithFixed() {
+    if (!fixResult) return;
+    const bin = Uint8Array.from(atob(fixResult.image_base64), (c) =>
+      c.charCodeAt(0),
+    );
+    const blob = new Blob([bin], { type: fixResult.mime });
+    const ext = fixResult.mime.split('/')[1] ?? 'png';
+    const fixedFile = new File([blob], `fixed.${ext}`, { type: fixResult.mime });
+    // Set as the working file so the next "Run compliance check" hits it.
+    setFile(fixedFile);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(URL.createObjectURL(fixedFile));
+    setReport(null);
+    setFixResult(null);
+  }
 
   return (
     <section className="flex-1 p-4 lg:p-8 space-y-6">
@@ -257,6 +320,101 @@ export default function CompliancePage() {
               rules={grouped.passed}
               collapsedByDefault
             />
+
+            {report.fix_suggestions.length > 0 && (
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Wrench className="h-4 w-4" />
+                      Auto-fix ({report.fix_suggestions.length} available)
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Apply pre-configured fixers in order (whitens
+                      background, crops fill, removes detected text, etc.).
+                      The fixed image opens in the preview — re-run the
+                      check to verify.
+                    </p>
+                    <ul className="text-xs text-muted-foreground mt-2 list-disc pl-4">
+                      {report.fix_suggestions.map((s, i) => (
+                        <li key={i}>
+                          <code>{s.type}</code>
+                          {s.rule_key && (
+                            <span className="text-gray-400"> · {s.rule_key}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={applyFixes}
+                    disabled={fixing || !file}
+                    className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+                  >
+                    {fixing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Applying…
+                      </>
+                    ) : (
+                      `Apply ${report.fix_suggestions.length} fixes`
+                    )}
+                  </Button>
+                </div>
+                {fixError && (
+                  <p className="text-sm text-red-600">{fixError}</p>
+                )}
+                {fixResult && (
+                  <div className="space-y-3 mt-2">
+                    <div className="flex flex-wrap gap-3 items-start">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Before
+                        </p>
+                        {previewUrl && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={previewUrl}
+                            alt="before"
+                            className="max-h-48 rounded border border-gray-200"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          After ({fixResult.applied.length} applied,{' '}
+                          {(fixResult.size_bytes / 1024).toFixed(0)} KB)
+                        </p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`data:${fixResult.mime};base64,${fixResult.image_base64}`}
+                          alt="after"
+                          className="max-h-48 rounded border border-gray-200"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        download={`fixed.${fixResult.mime.split('/')[1] ?? 'png'}`}
+                        href={`data:${fixResult.mime};base64,${fixResult.image_base64}`}
+                      >
+                        <Button type="button" variant="outline" size="sm">
+                          Download fixed
+                        </Button>
+                      </a>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={recheckWithFixed}
+                      >
+                        Re-check with fixed image
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

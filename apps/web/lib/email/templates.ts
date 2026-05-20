@@ -93,6 +93,52 @@ help — a real person reads every reply.
   return { to: p.to, subject, html, text };
 }
 
+// ─── workspace invitation ─────────────────────────────────────
+
+
+export interface WorkspaceInvitationProps {
+  to: string;
+  inviterName: string;
+  workspaceName: string;
+  role: 'admin' | 'editor' | 'viewer';
+  acceptUrl: string;
+}
+
+export function workspaceInvitationEmail(
+  p: WorkspaceInvitationProps,
+): EmailPayload {
+  const subject = `${p.inviterName} invited you to ${p.workspaceName} on ${BRAND}`;
+  const text = `${p.inviterName} invited you to join the ${p.workspaceName}
+workspace on ${BRAND} as ${p.role}.
+
+Accept the invitation (and create your account if you don't have one):
+${p.acceptUrl}
+
+If you weren't expecting this, you can safely ignore the email — the
+invitation expires in 14 days.
+
+— ${BRAND}
+`;
+  const html = shell(
+    `Join ${p.workspaceName} on ${BRAND}`,
+    `<p>${escapeHtml(p.inviterName)} invited you to join
+       <strong>${escapeHtml(p.workspaceName)}</strong> as
+       <strong>${escapeHtml(p.role)}</strong>.</p>
+     <p>
+       <a href="${escapeHtml(p.acceptUrl)}"
+          style="display: inline-block; background: #ea580c; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+         Accept invitation
+       </a>
+     </p>
+     <p style="font-size: 13px; color: #777;">
+       If you weren't expecting this, you can safely ignore — the
+       invitation expires in 14 days.
+     </p>`,
+  );
+  return { to: p.to, subject, html, text };
+}
+
+
 // ─── trial expiring (PRD § 5.3 must send ≥48h before charge) ─────
 
 

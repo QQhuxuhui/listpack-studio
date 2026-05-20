@@ -270,7 +270,9 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     return createCheckoutSession({ workspace: ws, priceId });
   }
 
-  redirect('/dashboard');
+  // New users land on /onboarding (D42) which auto-redirects existing users
+  // (those who already have a listing_pack) onward to /dashboard.
+  redirect('/onboarding');
 });
 
 export async function signOut() {
@@ -498,13 +500,16 @@ export const inviteWorkspaceMember = validatedActionWithUser(
       return { error: 'An invitation has already been sent to this email' };
     }
 
-    await db.insert(invitations).values({
-      workspaceId: userWithWorkspace.workspaceId,
-      email,
-      role,
-      invitedByUserId: user.id,
-      status: 'pending',
-    });
+    const [createdInvite] = await db
+      .insert(invitations)
+      .values({
+        workspaceId: userWithWorkspace.workspaceId,
+        email,
+        role,
+        invitedByUserId: user.id,
+        status: 'pending',
+      })
+      .returning();
 
     await logActivity(
       userWithWorkspace.workspaceId,
@@ -512,8 +517,66 @@ export const inviteWorkspaceMember = validatedActionWithUser(
       ActivityType.INVITE_WORKSPACE_MEMBER,
     );
 
-    // TODO(D2.2): send invitation email with ?inviteId=<uuid> appended to sign-up URL
+    // Best-effort invitation email. Never blocks — Resend may be unset in dev.
+    try {
+      const { sendWorkspaceInvitationEmail } = await import('@/lib/email');
+      const [workspaceRow] = await db
+        .select({ name: workspaces.name })
+        .from(workspaces)
+        .where(eq(workspaces.id, userWithWorkspace.workspaceId))
+        .limit(1);
+      const baseUrl = process.env.BASE_URL ?? '';
+      await sendWorkspaceInvitationEmail({
+        to: email,
+        inviterName: user.name || user.email,
+        workspaceName: workspaceRow?.name ?? 'a workspace',
+        role,
+        acceptUrl: `${baseUrl}/sign-up?inviteId=${encodeURIComponent(createdInvite?.id ?? '')}`,
+      });
+    } catch (err) {
+      console.warn('invite email failed', err);
+    }
 
     return { success: 'Invitation sent successfully' };
+  },
+);
+
+const updateOverageEnabledSchema = z.object({
+  enabled: z.enum(['true', 'false']),
+});
+
+/**
+ * Toggle workspace.subscription.overage_enabled.
+ *
+ * PRD § 00 § 5.1 — Free plan never bills overage no matter what the flag
+ * says (the agent's quota.py also enforces this). For paid tiers this
+ * controls whether the next SKU past quota gets billed at the overage
+ * rate or rejected at run-time with `run.quota_exceeded`.
+ */
+export const updateOverageEnabled = validatedActionWithUser(
+  updateOverageEnabledSchema,
+  async (data, _, user) => {
+    const userWithWorkspace = await getUserWithWorkspace(user.id);
+    if (!userWithWorkspace?.workspaceId) {
+      return { error: 'User is not part of a workspace' };
+    }
+
+    const wantEnabled = data.enabled === 'true';
+    await db
+      .update(subscriptions)
+      .set({ overageEnabled: wantEnabled, updatedAt: new Date() })
+      .where(eq(subscriptions.workspaceId, userWithWorkspace.workspaceId));
+
+    await logActivity(
+      userWithWorkspace.workspaceId,
+      user.id,
+      ActivityType.UPDATE_OVERAGE_SETTING,
+    );
+
+    return {
+      success: wantEnabled
+        ? 'Overage billing enabled — runs past quota will be billed.'
+        : 'Overage billing disabled — runs past quota will be rejected.',
+    };
   },
 );

@@ -15,9 +15,11 @@ import {
   type OverageWarningProps,
   type TrialExpiringProps,
   type WelcomeProps,
+  type WorkspaceInvitationProps,
   overageWarningEmail,
   trialExpiringEmail,
   welcomeEmail,
+  workspaceInvitationEmail,
 } from './templates';
 
 export async function sendWelcomeEmail(
@@ -41,9 +43,17 @@ export async function sendOverageWarningEmail(
   return sender(overageWarningEmail(props));
 }
 
+export async function sendWorkspaceInvitationEmail(
+  props: WorkspaceInvitationProps,
+  sender: EmailSender = defaultSender,
+): Promise<EmailSendResult> {
+  return sender(workspaceInvitationEmail(props));
+}
+
 export type { EmailSender, EmailSendResult } from './client';
 export type {
   WelcomeProps,
   TrialExpiringProps,
   OverageWarningProps,
+  WorkspaceInvitationProps,
 } from './templates';

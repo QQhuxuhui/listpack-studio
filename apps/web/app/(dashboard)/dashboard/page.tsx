@@ -19,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   inviteWorkspaceMember,
   removeWorkspaceMember,
+  updateOverageEnabled,
 } from '@/app/(login)/actions';
 import { customerPortalAction } from '@/lib/payments/actions';
 import type { Member, User, WorkspaceWithMembers } from '@/lib/db/schema';
@@ -121,8 +122,45 @@ function PlanAndQuota() {
             </p>
           )}
         </div>
+
+        {/* Overage toggle — hidden on Free (which never allows overage). */}
+        {plan.overagePerSkuUsd !== null && <OverageToggle enabled={sub?.overageEnabled ?? false} />}
       </CardContent>
     </Card>
+  );
+}
+
+function OverageToggle({ enabled }: { enabled: boolean }) {
+  const [state, action, isPending] = useActionState<
+    ActionState,
+    FormData
+  >(updateOverageEnabled, {});
+  const next = enabled ? 'false' : 'true';
+
+  return (
+    <form action={action} className="mt-5 border-t border-gray-100 pt-4">
+      <input type="hidden" name="enabled" value={next} />
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="font-medium text-sm">Allow overage billing</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {enabled
+              ? 'On — runs past quota are billed at the overage rate.'
+              : 'Off — runs past quota are rejected (no surprise charges).'}
+          </p>
+        </div>
+        <Button
+          type="submit"
+          variant={enabled ? 'outline' : 'default'}
+          size="sm"
+          disabled={isPending}
+        >
+          {isPending ? 'Saving…' : enabled ? 'Disable' : 'Enable'}
+        </Button>
+      </div>
+      {state?.error && <p className="text-xs text-red-600 mt-2">{state.error}</p>}
+      {state?.success && <p className="text-xs text-green-700 mt-2">{state.success}</p>}
+    </form>
   );
 }
 

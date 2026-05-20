@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AlertCircle,
   CheckCircle,
+  CreditCard,
   ImagePlus,
   Lock,
   LogOut,
@@ -31,6 +32,7 @@ const iconMap: Record<ActivityType, LucideIcon> = {
   [ActivityType.CREATE_LISTING_PACK]: ImagePlus,
   [ActivityType.PUBLISH_TO_PLATFORM]: Truck,
   [ActivityType.COMPLIANCE_CHECK]: ShieldAlert,
+  [ActivityType.UPDATE_OVERAGE_SETTING]: CreditCard,
 };
 
 function getRelativeTime(date: Date) {
@@ -75,6 +77,8 @@ function formatAction(action: ActivityType): string {
       return 'You published to a platform';
     case ActivityType.COMPLIANCE_CHECK:
       return 'You ran a compliance check';
+    case ActivityType.UPDATE_OVERAGE_SETTING:
+      return 'You updated the overage billing setting';
     default:
       return 'Unknown action occurred';
   }
