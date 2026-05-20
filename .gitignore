@@ -1,5 +1,7 @@
-# ── Local storage (LocalFsStorage backend in dev) ─────────────
-storage/
+# ── Local storage (LocalFsStorage backend in dev — uploaded files) ───
+# Root-only match — leave the lib/storage/ source directory alone.
+/storage/
+/apps/*/storage/
 
 # ── Node / TypeScript ─────────────────────────────────────────
 node_modules/
