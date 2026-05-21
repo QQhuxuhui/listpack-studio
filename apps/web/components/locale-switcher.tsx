@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import { Globe } from 'lucide-react';
 import {
   DEFAULT_LOCALE,
@@ -32,7 +31,6 @@ function readLocaleCookie(): Locale {
 }
 
 export function LocaleSwitcher({ currentLocale: prop }: Props = {}) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [currentLocale, setCurrentLocale] = useState<Locale>(
     prop ?? DEFAULT_LOCALE,
@@ -52,9 +50,13 @@ export function LocaleSwitcher({ currentLocale: prop }: Props = {}) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ locale: next }),
       });
-      setCurrentLocale(next);
-      // Re-fetch the current route so SSR picks up the new cookie.
-      router.refresh();
+      // Full reload — router.refresh() only re-renders server components.
+      // Every client component using `useDictionary()` (dashboard nav,
+      // onboarding wizard, brand-kit form, etc.) has its locale state
+      // pinned to mount-time via useState/useEffect, so a soft refresh
+      // leaves their labels stale. window.location.reload() forces every
+      // component to re-read the cookie via its useState initial path.
+      window.location.reload();
     });
   }
 
