@@ -125,12 +125,15 @@ const signUpSchema = z.object({
   password: z.string().min(8),
   // login.tsx always posts the hidden `inviteId` field, even when the
   // user landed on /sign-up without an `?inviteId=...` query — it
-  // submits as an empty string. `.optional()` alone doesn't accept ''
-  // so we preprocess: empty → undefined, then uuid validation only
-  // runs when there's actually an invite.
-  inviteId: z
-    .preprocess((v) => (v === '' ? undefined : v), z.string().uuid())
-    .optional(),
+  // submits as an empty string. We coerce '' → undefined inside the
+  // preprocess and let the INNER schema accept undefined via .optional().
+  // (Previously .optional() lived OUTSIDE preprocess, so '' became
+  // undefined, then the inner z.string().uuid() rejected undefined
+  // with "Required" — exactly the regression that bit the next try.)
+  inviteId: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().uuid().optional(),
+  ),
 });
 
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
