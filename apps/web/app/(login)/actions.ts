@@ -123,7 +123,14 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
-  inviteId: z.string().uuid().optional(),
+  // login.tsx always posts the hidden `inviteId` field, even when the
+  // user landed on /sign-up without an `?inviteId=...` query — it
+  // submits as an empty string. `.optional()` alone doesn't accept ''
+  // so we preprocess: empty → undefined, then uuid validation only
+  // runs when there's actually an invite.
+  inviteId: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().uuid())
+    .optional(),
 });
 
 export const signUp = validatedAction(signUpSchema, async (data, formData) => {
