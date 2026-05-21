@@ -27,7 +27,10 @@ export async function POST(request: Request) {
     name: LOCALE_COOKIE,
     value: body.locale,
     httpOnly: false,
-    secure: true,
+    // secure cookies are dropped by Safari (and stricter Firefox configs)
+    // on http://localhost. In dev we MUST send the cookie back unencrypted
+    // so the locale persists; prod (https) keeps secure on.
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 365,
     path: '/',
