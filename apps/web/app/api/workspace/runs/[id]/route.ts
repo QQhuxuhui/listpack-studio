@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
   agentRuns,

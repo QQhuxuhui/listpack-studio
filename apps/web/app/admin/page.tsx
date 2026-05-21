@@ -132,7 +132,13 @@ export default function AdminWorkspacesPage() {
     fetcher,
   );
   const [q, setQ] = useState('');
-  const rows = data?.workspaces ?? [];
+  // `data?.workspaces ?? []` would be a fresh array literal each render
+  // and re-trigger the useMemo below. Memoising on `data` keeps the
+  // identity stable when SWR returns the cached payload.
+  const rows = useMemo<WorkspaceRow[]>(
+    () => data?.workspaces ?? [],
+    [data],
+  );
 
   // Pre-filter using stripe id + slug (tanstack's global filter uses the
   // visible accessor strings; adding a hidden join here keeps the search

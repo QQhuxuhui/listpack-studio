@@ -21,7 +21,6 @@ import {
   Html,
   Link,
   Preview,
-  Section,
   Text,
 } from '@react-email/components';
 import { type ReactNode } from 'react';

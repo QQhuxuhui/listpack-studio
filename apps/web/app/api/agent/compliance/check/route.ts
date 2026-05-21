@@ -1,4 +1,5 @@
 import { AgentRequestError } from '@/lib/agent-client';
+import { requireWorkspaceSession } from '@/lib/agent/auth-guard';
 
 /**
  * Multipart proxy: browser → this route → apps/agent /v1/compliance/check.
@@ -6,8 +7,11 @@ import { AgentRequestError } from '@/lib/agent-client';
  * Why proxy: token injection (agent token stays server-side) + single place
  * to add per-workspace rate limiting / audit logging.
  *
- * Compliance checks are free (no SKU consumed) so we don't touch the
- * workspace's subscription here — that's the auto-fix endpoint's job (D11+).
+ * Compliance checks don't consume SKU quota, but they DO spend agent
+ * CPU (PaddleOCR + DETR + libvips) — and the upstream call goes out
+ * with the private AGENT_SERVICE_TOKEN. So a session is required,
+ * same as the rest of /api/agent/*. The D58.1 fix landed on auto-fix
+ * but accidentally not here — D58.4 closes the gap the reviewer found.
  */
 
 export const runtime = 'nodejs';
@@ -16,6 +20,9 @@ export const dynamic = 'force-dynamic';
 const AGENT_BASE = process.env.AGENT_SERVICE_URL ?? 'http://localhost:8000';
 
 export async function POST(request: Request) {
+  const auth = await requireWorkspaceSession();
+  if (!auth.ok) return auth.response;
+
   // Stream the multipart body through to agent. Re-using formData() works
   // because Next 15 already buffers + parses; for very large uploads we'd
   // forward request.body as a duplex stream, but our 20MB cap makes buffering

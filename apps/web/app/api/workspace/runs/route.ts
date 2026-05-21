@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { agentRuns, listingPacks } from '@/lib/db/schema';
 import { getWorkspaceForUser } from '@/lib/db/queries';

@@ -18,7 +18,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CategoryPicker } from '@/components/category-picker';
-import { isCategoryRunnable } from '@/lib/compliance/category-guardrails';
 
 type Platform = 'amazon' | 'shopify' | 'ebay' | 'temu' | 'shein';
 

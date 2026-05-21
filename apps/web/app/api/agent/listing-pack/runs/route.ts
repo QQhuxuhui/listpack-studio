@@ -13,7 +13,9 @@
 
 import { NextResponse } from 'next/server';
 import { AgentRequestError } from '@/lib/agent-client';
-import { requireWorkspaceSession, verifyRunInWorkspace } from '@/lib/agent/auth-guard';
+// verifyRunInWorkspace lives in the [id]/[op] route; this POST only
+// validates the listing_pack_id, so we don't need it here.
+import { requireWorkspaceSession } from '@/lib/agent/auth-guard';
 import {
   getCategory,
   isCategoryRunnable,

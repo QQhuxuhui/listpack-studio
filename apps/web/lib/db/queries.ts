@@ -7,7 +7,6 @@ import {
   members,
   subscriptions,
   users,
-  workspaces,
   type Subscription,
   type WorkspaceWithMembers,
 } from './schema';
