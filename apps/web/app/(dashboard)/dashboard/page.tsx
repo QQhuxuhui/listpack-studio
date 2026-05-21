@@ -25,7 +25,9 @@ import { customerPortalAction } from '@/lib/payments/actions';
 import type { Member, User, WorkspaceWithMembers } from '@/lib/db/schema';
 import { getPlan } from '@/lib/payments/plans';
 import { useDictionary } from '@/lib/i18n/client';
-import { fmt } from '@/lib/i18n/dictionary';
+// dictionary-registry, NOT dictionary — this is a client component
+// and `dictionary` imports server-only (next/headers).
+import { fmt } from '@/lib/i18n/dictionary-registry';
 
 type ActionState = { error?: string; success?: string };
 

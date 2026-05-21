@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test 'lib/**/__tests__/*.test.ts'",
     "clean": "rm -rf .next .turbo node_modules",
@@ -56,6 +56,9 @@
     "zod": "^3.24.4"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^15.5.18",
     "tsx": "^4.22.2"
   }
 }

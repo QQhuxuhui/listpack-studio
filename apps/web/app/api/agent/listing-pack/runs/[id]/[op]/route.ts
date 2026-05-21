@@ -4,7 +4,9 @@
  * Thin JSON proxy → agent HITL endpoints.
  */
 
+import { NextResponse } from 'next/server';
 import { AgentRequestError } from '@/lib/agent-client';
+import { requireWorkspaceSession, verifyRunInWorkspace } from '@/lib/agent/auth-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,11 +18,30 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string; op: string }> },
 ) {
+  // D58.1 — gated. Even a signed-in user must NOT be able to control
+  // (cancel / fork etc.) a run that belongs to another workspace; we
+  // verify ownership by joining agent_runs → listing_packs.workspace_id.
+  const auth = await requireWorkspaceSession();
+  if (!auth.ok) return auth.response;
+
   const { id, op } = await params;
   if (!ALLOWED_OPS.has(op)) {
     return Response.json(
       { error: { type: 'invalid_request', message: `unknown op: ${op}` } },
       { status: 400 },
+    );
+  }
+
+  const owned = await verifyRunInWorkspace(id, auth.workspace.id);
+  if (!owned) {
+    return NextResponse.json(
+      {
+        error: {
+          type: 'forbidden',
+          message: 'run not found in your workspace',
+        },
+      },
+      { status: 403 },
     );
   }
 

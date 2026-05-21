@@ -7,6 +7,7 @@
  */
 
 import { AgentRequestError } from '@/lib/agent-client';
+import { requireWorkspaceSession } from '@/lib/agent/auth-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,11 @@ export const dynamic = 'force-dynamic';
 const AGENT_BASE = process.env.AGENT_SERVICE_URL ?? 'http://localhost:8000';
 
 export async function POST(request: Request) {
+  // D58.1 — sign-in required so anonymous callers can't get an
+  // AGENT_SERVICE_TOKEN-stamped auto-fix run for free.
+  const auth = await requireWorkspaceSession();
+  if (!auth.ok) return auth.response;
+
   const incoming = await request.formData();
   const file = incoming.get('file');
   const actions = incoming.get('actions');

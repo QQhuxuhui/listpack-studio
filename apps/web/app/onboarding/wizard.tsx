@@ -21,7 +21,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDictionary } from '@/lib/i18n/client';
-import { fmt } from '@/lib/i18n/dictionary';
+// dictionary-registry, NOT dictionary — this is a client component
+// and `dictionary` imports server-only (next/headers).
+import { fmt } from '@/lib/i18n/dictionary-registry';
 
 const PLATFORM_OPTIONS = ['amazon', 'shopify', 'ebay', 'temu', 'shein'] as const;
 

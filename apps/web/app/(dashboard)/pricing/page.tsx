@@ -15,7 +15,7 @@ interface PricedPlan extends PlanDef {
 
 export default async function PricingPage() {
   const { t } = await getDictionary();
-  let stripePriceByProductName = new Map<string, string>();
+  const stripePriceByProductName = new Map<string, string>();
 
   try {
     const [prices, products] = await Promise.all([

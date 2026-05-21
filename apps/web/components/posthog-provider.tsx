@@ -8,7 +8,7 @@
  * silently no-ops when absent. Tracks pageviews automatically.
  */
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import posthog from 'posthog-js';
 
@@ -28,7 +28,12 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <PageviewTracker />
+      {/* useSearchParams() forces the subtree into CSR — Next requires
+          it to live under <Suspense> or every page that mounts this
+          provider fails to pre-render (D58.2 build fix). */}
+      <Suspense fallback={null}>
+        <PageviewTracker />
+      </Suspense>
       {children}
     </>
   );

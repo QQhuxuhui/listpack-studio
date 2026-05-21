@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 
 import { en } from '../dictionaries/en';
 import { zhCN } from '../dictionaries/zh-CN';
-import { fmt, getDictionarySync } from '../dictionary';
+// Import from the pure registry — `../dictionary` would pull in
+// `server-only`, which Node refuses to load outside Next's bundler.
+import { fmt, getDictionarySync } from '../dictionary-registry';
 import { LOCALES, isLocale } from '../types';
 
 test('LOCALES contains exactly the two supported languages', () => {

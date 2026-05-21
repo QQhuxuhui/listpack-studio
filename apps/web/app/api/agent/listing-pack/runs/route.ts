@@ -13,15 +13,16 @@
 
 import { NextResponse } from 'next/server';
 import { AgentRequestError } from '@/lib/agent-client';
+import { requireWorkspaceSession, verifyRunInWorkspace } from '@/lib/agent/auth-guard';
 import {
   getCategory,
   isCategoryRunnable,
 } from '@/lib/compliance/category-guardrails';
 import {
+  getListingPackForWorkspace,
   insertAsset,
   insertListingPack,
 } from '@/lib/db/asset-queries';
-import { getUser, getWorkspaceForUser } from '@/lib/db/queries';
 import { getStorage } from '@/lib/storage';
 
 export const runtime = 'nodejs';
@@ -58,6 +59,14 @@ function extFor(mime: string): string {
 }
 
 export async function POST(request: Request) {
+  // D58.1 — always require a session before forwarding to agent. The
+  // earlier guard only fired when `listing_pack_id` was missing, which
+  // meant a caller could supply ANY listing_pack_id from any workspace
+  // and trigger a billed run on someone else's account.
+  const auth = await requireWorkspaceSession();
+  if (!auth.ok) return auth.response;
+  const { user, workspace: ws } = auth;
+
   const incoming = await request.formData();
   const file = incoming.get('file');
   const platformsRaw = incoming.get('target_platforms');
@@ -124,15 +133,26 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── auto-create listing_pack when missing ─────────────────────
-  if (!listingPackId) {
-    const [user, ws] = await Promise.all([getUser(), getWorkspaceForUser()]);
-    if (!user || !ws) {
+  // D58.1 — when a listing_pack_id IS supplied, verify it belongs to
+  // this user's workspace. Without this check a signed-in user from
+  // workspace A could pass workspace B's listing_pack_id and bill B.
+  if (listingPackId) {
+    const pack = await getListingPackForWorkspace(listingPackId, ws.id);
+    if (!pack) {
       return NextResponse.json(
-        { error: { type: 'unauthorized', message: 'sign in required' } },
-        { status: 401 },
+        {
+          error: {
+            type: 'forbidden',
+            message: 'listing_pack_id not found in your workspace',
+          },
+        },
+        { status: 403 },
       );
     }
+  }
+
+  // ── auto-create listing_pack when missing ─────────────────────
+  if (!listingPackId) {
     const bytes = Buffer.from(await file.arrayBuffer());
     if (bytes.length === 0) {
       return NextResponse.json(

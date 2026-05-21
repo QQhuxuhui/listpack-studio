@@ -1,6 +1,24 @@
+/**
+ * Server-side dictionary resolver.
+ *
+ * Importing this file pulls in `next/headers`, so it is SAFE ONLY in
+ * Server Components, route handlers, and server actions. Client
+ * components must import from `./client` (the useDictionary hook) or
+ * directly from `./dictionary-registry` (raw getDictionarySync + fmt).
+ *
+ * The runtime `import 'server-only'` line below makes Next throw a
+ * clear build-time error if a client file ever tries to import this
+ * module — prevents the D58.2 regression sneaking back in.
+ */
+
+import 'server-only';
 import { cookies } from 'next/headers';
-import { en } from './dictionaries/en';
-import { zhCN } from './dictionaries/zh-CN';
+
+import {
+  REGISTRY,
+  getDictionarySync,
+  fmt,
+} from './dictionary-registry';
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
@@ -9,19 +27,10 @@ import {
   isLocale,
 } from './types';
 
-const REGISTRY: Record<Locale, Dictionary> = {
-  en,
-  'zh-CN': zhCN,
-};
-
-export function getDictionarySync(locale: Locale): Dictionary {
-  return REGISTRY[locale] ?? REGISTRY[DEFAULT_LOCALE];
-}
-
 /**
  * Server-side resolver — reads the locale cookie (set by the switcher
  * endpoint) and returns the matching dictionary. Use in `async`
- * Server Components: `const t = await getDictionary();`.
+ * Server Components: `const { t } = await getDictionary();`.
  */
 export async function getDictionary(): Promise<{
   locale: Locale;
@@ -33,16 +42,8 @@ export async function getDictionary(): Promise<{
   return { locale, t: REGISTRY[locale] };
 }
 
-/**
- * Tiny template — replaces `{key}` placeholders with `vars[key]`. We
- * skip plural / gender support; the few strings that need them spell out
- * the variants explicitly.
- */
-export function fmt(
-  template: string,
-  vars: Record<string, string | number> = {},
-): string {
-  return template.replace(/\{(\w+)\}/g, (_, k) =>
-    Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : `{${k}}`,
-  );
-}
+// Re-export the pure registry helpers for back-compat with existing
+// server-side imports (`import { fmt, getDictionarySync } from
+// '@/lib/i18n/dictionary'`). Client code should switch to importing
+// from './dictionary-registry' directly to avoid the server bundle.
+export { getDictionarySync, fmt };

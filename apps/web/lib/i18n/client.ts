@@ -17,7 +17,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import { getDictionarySync } from './dictionary';
+// IMPORTANT: import from the pure registry (no next/headers), not
+// from './dictionary'. See lib/i18n/dictionary-registry.ts comment.
+import { getDictionarySync } from './dictionary-registry';
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
