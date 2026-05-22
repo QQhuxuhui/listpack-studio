@@ -27,7 +27,7 @@ export function validatedAction<S extends z.ZodType<unknown>, T>(
   ): Promise<ActionState> => {
     const result = schema.safeParse(Object.fromEntries(formData));
     if (!result.success) {
-      return { error: result.error.issues[0]?.message ?? 'Invalid input' };
+      return { error: result.error.issues[0]?.message ?? '输入无效' };
     }
     // `redirect()` throws a Next.js internal error, so `action` returns `never`
     // on the happy path. Coerce the formal T into ActionState for useActionState.
@@ -58,7 +58,7 @@ export function validatedActionWithUser<S extends z.ZodType<unknown>, T>(
 
     const result = schema.safeParse(Object.fromEntries(formData));
     if (!result.success) {
-      return { error: result.error.issues[0]?.message ?? 'Invalid input' };
+      return { error: result.error.issues[0]?.message ?? '输入无效' };
     }
     const r = (await action(result.data, formData, user)) as
       | ActionState

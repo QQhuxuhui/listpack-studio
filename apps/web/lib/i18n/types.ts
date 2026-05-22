@@ -1,19 +1,15 @@
 /**
- * i18n surface — kept zero-dep.
+ * i18n surface — collapsed to zh-CN only.
  *
- * Why not next-intl / react-i18next:
- *   - We need just two locales (en, zh-CN) and ~80 strings to start.
- *   - Both libs bring middleware-driven URL prefixes (/en/dashboard,
- *     /zh/dashboard) which would force a routing refactor of every
- *     internal Link. Cookie-based locale keeps URLs stable and is
- *     trivial to swap to next-intl later.
- *   - The full dictionary is ~6 KB JSON, smaller than the i18n libs.
+ * Multi-locale (en + zh-CN) is paused; the dictionary mechanism stays
+ * so re-adding a second locale is a one-file change (add the locale
+ * to LOCALES, register its dictionary, restore the switcher).
  */
 
-export const LOCALES = ['en', 'zh-CN'] as const;
+export const LOCALES = ['zh-CN'] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const DEFAULT_LOCALE: Locale = 'en';
+export const DEFAULT_LOCALE: Locale = 'zh-CN';
 export const LOCALE_COOKIE = 'listpack_locale';
 
 export function isLocale(value: string | undefined | null): value is Locale {
@@ -221,5 +217,10 @@ export type Dictionary = {
     sign_in_link: string;
     create_account: string;
     new_to_platform: string;
+    already_have_account: string;
+    placeholder_email: string;
+    placeholder_password: string;
+    sign_in_h2: string;
+    sign_up_h2: string;
   };
 };

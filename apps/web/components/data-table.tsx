@@ -34,7 +34,7 @@ export function DataTable<T>({
   data,
   columns,
   globalFilter,
-  emptyMessage = 'No rows.',
+  emptyMessage = '无数据。',
 }: Props<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 

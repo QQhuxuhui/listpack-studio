@@ -10,7 +10,7 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "env": ["NODE_ENV", "DATABASE_URL", "AGENT_SERVICE_URL", "*_API_KEY", "*_SECRET"]
+      "env": ["NODE_ENV", "DATABASE_URL", "*_API_KEY", "*_SECRET", "SPARKCODE_*"]
     },
     "lint": {
       "outputs": []

@@ -208,5 +208,10 @@ export const zhCN: Dictionary = {
     sign_in_link: '使用已有账户登录',
     create_account: '创建账号',
     new_to_platform: '第一次使用 ListPack？',
+    already_have_account: '已有账号？',
+    placeholder_email: '请输入邮箱',
+    placeholder_password: '请输入密码',
+    sign_in_h2: '登录账户',
+    sign_up_h2: '创建账户',
   },
 };

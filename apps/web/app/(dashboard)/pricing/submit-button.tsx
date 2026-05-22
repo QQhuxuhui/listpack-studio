@@ -17,11 +17,11 @@ export function SubmitButton() {
       {pending ? (
         <>
           <Loader2 className="animate-spin mr-2 h-4 w-4" />
-          Loading...
+          加载中…
         </>
       ) : (
         <>
-          Get Started
+          立即开始
           <ArrowRight className="ml-2 h-4 w-4" />
         </>
       )}

@@ -10,12 +10,8 @@ import {
   Shield,
   Activity,
   Menu,
-  Palette,
-  PlayCircle,
-  Plug,
-  ShieldCheck,
-  History,
 } from 'lucide-react';
+import { useDictionary } from '@/lib/i18n/client';
 
 export default function DashboardLayout({
   children
@@ -24,17 +20,13 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { t } = useDictionary();
 
   const navItems = [
-    { href: '/dashboard', icon: Users, label: 'Workspace' },
-    { href: '/dashboard/runs/new', icon: PlayCircle, label: 'New run' },
-    { href: '/dashboard/runs', icon: History, label: 'Recent runs' },
-    { href: '/dashboard/connections', icon: Plug, label: 'Connections' },
-    { href: '/dashboard/brand-kit', icon: Palette, label: 'Brand kit' },
-    { href: '/dashboard/compliance', icon: ShieldCheck, label: 'Compliance' },
-    { href: '/dashboard/general', icon: Settings, label: 'General' },
-    { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
-    { href: '/dashboard/security', icon: Shield, label: 'Security' }
+    { href: '/dashboard', icon: Users, label: t.nav.workspace },
+    { href: '/dashboard/general', icon: Settings, label: t.nav.general },
+    { href: '/dashboard/activity', icon: Activity, label: t.nav.activity },
+    { href: '/dashboard/security', icon: Shield, label: t.nav.security }
   ];
 
   return (
@@ -42,7 +34,7 @@ export default function DashboardLayout({
       {/* Mobile header */}
       <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
         <div className="flex items-center">
-          <span className="font-medium">Settings</span>
+          <span className="font-medium">设置</span>
         </div>
         <Button
           className="-mr-3"
@@ -50,7 +42,7 @@ export default function DashboardLayout({
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
         >
           <Menu className="h-6 w-6" />
-          <span className="sr-only">Toggle sidebar</span>
+          <span className="sr-only">切换侧边栏</span>
         </Button>
       </div>
 

@@ -4,11 +4,11 @@ export default function ActivityPageSkeleton() {
   return (
     <section className="flex-1 p-4 lg:p-8">
       <h1 className="text-lg lg:text-2xl font-medium text-gray-900 mb-6">
-        Activity Log
+        活动日志
       </h1>
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>近期活动</CardTitle>
         </CardHeader>
         <CardContent className="min-h-[88px]" />
       </Card>

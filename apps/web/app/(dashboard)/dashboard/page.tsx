@@ -37,7 +37,7 @@ function SubscriptionSkeleton() {
   return (
     <Card className="mb-8 h-[140px]">
       <CardHeader>
-        <CardTitle>Workspace Subscription</CardTitle>
+        <CardTitle>工作区订阅</CardTitle>
       </CardHeader>
     </Card>
   );
@@ -61,14 +61,14 @@ function PlanAndQuota() {
 
   const statusLabel =
     sub?.status === 'trialing'
-      ? `Trial period · ${plan.trialDays} days`
+      ? `试用期 · ${plan.trialDays} 天`
       : sub?.status === 'past_due'
-        ? 'Payment past due'
+        ? '账单逾期'
         : sub?.status === 'canceled'
-          ? 'Canceled — falls back to Free at period end'
+          ? '已取消 —— 本周期结束后将回落到免费版'
           : sub?.status === 'active'
-            ? `Billed monthly · $${plan.monthlyPriceCents ? plan.monthlyPriceCents / 100 : 0}`
-            : 'No active subscription';
+            ? `按月计费 · $${plan.monthlyPriceCents ? plan.monthlyPriceCents / 100 : 0}`
+            : '尚无有效订阅';
 
   return (
     <Card className="mb-8">
@@ -78,7 +78,7 @@ function PlanAndQuota() {
       <CardContent>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
           <div>
-            <p className="font-medium text-lg">{plan.displayName} plan</p>
+            <p className="font-medium text-lg">{plan.displayName} 套餐</p>
             <p className="text-sm text-muted-foreground">{statusLabel}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -182,7 +182,7 @@ function WorkspaceMembersSkeleton() {
   return (
     <Card className="mb-8 h-[140px]">
       <CardHeader>
-        <CardTitle>Workspace Members</CardTitle>
+        <CardTitle>工作区成员</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="animate-pulse space-y-4 mt-1">
@@ -213,16 +213,16 @@ function WorkspaceMembers() {
   const memberList: MemberWithUser[] = (ws?.members as MemberWithUser[]) ?? [];
 
   const displayName = (u: Pick<User, 'id' | 'name' | 'email'>) =>
-    u.name || u.email || 'Unknown User';
+    u.name || u.email || '未知用户';
 
   if (memberList.length === 0) {
     return (
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Workspace Members</CardTitle>
+          <CardTitle>工作区成员</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">No members yet.</p>
+          <p className="text-muted-foreground">还没有成员。</p>
         </CardContent>
       </Card>
     );
@@ -231,7 +231,7 @@ function WorkspaceMembers() {
   return (
     <Card className="mb-8">
       <CardHeader>
-        <CardTitle>Workspace Members</CardTitle>
+        <CardTitle>工作区成员</CardTitle>
       </CardHeader>
       <CardContent>
         <ul className="space-y-4">
@@ -262,7 +262,7 @@ function WorkspaceMembers() {
                     size="sm"
                     disabled={isRemovePending}
                   >
-                    {isRemovePending ? 'Removing...' : 'Remove'}
+                    {isRemovePending ? '移除中…' : '移除'}
                   </Button>
                 </form>
               ) : null}
@@ -281,7 +281,7 @@ function InviteMemberSkeleton() {
   return (
     <Card className="h-[260px]">
       <CardHeader>
-        <CardTitle>Invite Workspace Member</CardTitle>
+        <CardTitle>邀请工作区成员</CardTitle>
       </CardHeader>
     </Card>
   );
@@ -306,25 +306,25 @@ function InviteMember() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invite Workspace Member</CardTitle>
+        <CardTitle>邀请工作区成员</CardTitle>
       </CardHeader>
       <CardContent>
         <form action={inviteAction} className="space-y-4">
           <div>
             <Label htmlFor="email" className="mb-2">
-              Email
+              邮箱
             </Label>
             <Input
               id="email"
               name="email"
               type="email"
-              placeholder="Enter email"
+              placeholder="请输入邮箱"
               required
               disabled={!isOwner}
             />
           </div>
           <div>
-            <Label>Role</Label>
+            <Label>角色</Label>
             <RadioGroup
               defaultValue="editor"
               name="role"
@@ -333,15 +333,15 @@ function InviteMember() {
             >
               <div className="flex items-center space-x-2 mt-2">
                 <RadioGroupItem value="admin" id="role-admin" />
-                <Label htmlFor="role-admin">Admin</Label>
+                <Label htmlFor="role-admin">管理员</Label>
               </div>
               <div className="flex items-center space-x-2 mt-2">
                 <RadioGroupItem value="editor" id="role-editor" />
-                <Label htmlFor="role-editor">Editor</Label>
+                <Label htmlFor="role-editor">编辑者</Label>
               </div>
               <div className="flex items-center space-x-2 mt-2">
                 <RadioGroupItem value="viewer" id="role-viewer" />
-                <Label htmlFor="role-viewer">Viewer</Label>
+                <Label htmlFor="role-viewer">查看者</Label>
               </div>
             </RadioGroup>
           </div>
@@ -359,12 +359,12 @@ function InviteMember() {
             {isInvitePending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Inviting...
+                邀请中…
               </>
             ) : (
               <>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Invite Member
+                邀请成员
               </>
             )}
           </Button>
@@ -373,7 +373,7 @@ function InviteMember() {
       {!isOwner && (
         <CardFooter>
           <p className="text-sm text-muted-foreground">
-            You must be a workspace owner to invite new members.
+            只有工作区所有者可以邀请新成员。
           </p>
         </CardFooter>
       )}

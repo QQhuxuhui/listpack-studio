@@ -44,7 +44,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 const columns: ColumnDef<WorkspaceRow, unknown>[] = [
   {
     id: 'workspace',
-    header: 'Workspace',
+    header: '工作区',
     accessorKey: 'name',
     cell: ({ row }) => (
       <>
@@ -52,7 +52,7 @@ const columns: ColumnDef<WorkspaceRow, unknown>[] = [
         <div className="text-xs text-muted-foreground">
           {row.original.slug}
           {row.original.deletedAt && (
-            <span className="text-red-600 ml-2">deleted</span>
+            <span className="text-red-600 ml-2">已删除</span>
           )}
         </div>
       </>
@@ -60,7 +60,7 @@ const columns: ColumnDef<WorkspaceRow, unknown>[] = [
   },
   {
     id: 'owner',
-    header: 'Owner',
+    header: '所有者',
     accessorFn: (r) => `${r.ownerName ?? ''} ${r.ownerEmail ?? ''}`,
     cell: ({ row }) => (
       <>
@@ -73,7 +73,7 @@ const columns: ColumnDef<WorkspaceRow, unknown>[] = [
   },
   {
     id: 'plan',
-    header: 'Plan',
+    header: '套餐',
     accessorFn: (r) => r.subPlan ?? r.planId,
     cell: ({ row }) => (
       <code className="text-xs">{row.original.subPlan ?? row.original.planId}</code>
@@ -81,7 +81,7 @@ const columns: ColumnDef<WorkspaceRow, unknown>[] = [
   },
   {
     id: 'status',
-    header: 'Status',
+    header: '状态',
     accessorKey: 'subStatus',
     cell: ({ row }) => {
       const s = row.original.subStatus;
@@ -99,7 +99,7 @@ const columns: ColumnDef<WorkspaceRow, unknown>[] = [
   },
   {
     id: 'usage',
-    header: 'Usage',
+    header: '用量',
     accessorFn: (r) => (r.subUsed ?? 0) / Math.max(r.subQuota ?? 1, 1),
     cell: ({ row }) =>
       row.original.subUsed != null && row.original.subQuota != null
@@ -108,15 +108,15 @@ const columns: ColumnDef<WorkspaceRow, unknown>[] = [
   },
   {
     id: 'overage',
-    header: 'Overage',
+    header: '超额',
     accessorKey: 'overageEnabled',
     cell: ({ row }) => (
-      <span className="text-xs">{row.original.overageEnabled ? 'on' : 'off'}</span>
+      <span className="text-xs">{row.original.overageEnabled ? '开' : '关'}</span>
     ),
   },
   {
     id: 'created',
-    header: 'Created',
+    header: '创建于',
     accessorKey: 'createdAt',
     cell: ({ row }) => (
       <span className="text-xs">
@@ -157,19 +157,19 @@ export default function AdminWorkspacesPage() {
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Workspaces</h1>
+        <h1 className="text-2xl font-semibold">工作区列表</h1>
         <div className="flex gap-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-8 w-64"
-              placeholder="name, owner email, stripe id…"
+              placeholder="名称、所有者邮箱、Stripe ID…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
           <Button variant="outline" size="sm" onClick={() => mutate()}>
-            <RefreshCcw className="h-3.5 w-3.5 mr-1" /> Refresh
+            <RefreshCcw className="h-3.5 w-3.5 mr-1" /> 刷新
           </Button>
         </div>
       </div>
@@ -178,15 +178,15 @@ export default function AdminWorkspacesPage() {
         <CardHeader>
           <CardTitle className="text-sm">
             {isLoading
-              ? 'Loading…'
-              : `${filtered.length} of ${rows.length} workspaces · click headers to sort`}
+              ? '加载中…'
+              : `共 ${rows.length} 个工作区,显示 ${filtered.length} 个 · 点击表头排序`}
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <DataTable
             data={filtered}
             columns={columns}
-            emptyMessage="No workspaces match the filter."
+            emptyMessage="没有符合筛选条件的工作区。"
           />
         </CardContent>
       </Card>

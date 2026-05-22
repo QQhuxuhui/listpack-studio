@@ -39,48 +39,48 @@ function getRelativeTime(date: Date) {
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffInSeconds < 60) return 'just now';
+  if (diffInSeconds < 60) return '刚刚';
   if (diffInSeconds < 3600)
-    return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    return `${Math.floor(diffInSeconds / 60)} 分钟前`;
   if (diffInSeconds < 86400)
-    return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    return `${Math.floor(diffInSeconds / 3600)} 小时前`;
   if (diffInSeconds < 604800)
-    return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    return `${Math.floor(diffInSeconds / 86400)} 天前`;
   return date.toLocaleDateString();
 }
 
 function formatAction(action: ActivityType): string {
   switch (action) {
     case ActivityType.SIGN_UP:
-      return 'You signed up';
+      return '注册账号';
     case ActivityType.SIGN_IN:
-      return 'You signed in';
+      return '登录';
     case ActivityType.SIGN_OUT:
-      return 'You signed out';
+      return '退出登录';
     case ActivityType.UPDATE_PASSWORD:
-      return 'You changed your password';
+      return '修改密码';
     case ActivityType.DELETE_ACCOUNT:
-      return 'You deleted your account';
+      return '删除账号';
     case ActivityType.UPDATE_ACCOUNT:
-      return 'You updated your account';
+      return '更新账号信息';
     case ActivityType.CREATE_WORKSPACE:
-      return 'You created a new workspace';
+      return '创建工作区';
     case ActivityType.REMOVE_WORKSPACE_MEMBER:
-      return 'You removed a workspace member';
+      return '移除工作区成员';
     case ActivityType.INVITE_WORKSPACE_MEMBER:
-      return 'You invited a workspace member';
+      return '邀请工作区成员';
     case ActivityType.ACCEPT_INVITATION:
-      return 'You accepted an invitation';
+      return '接受邀请';
     case ActivityType.CREATE_LISTING_PACK:
-      return 'You created a listing pack';
+      return '创建上架包';
     case ActivityType.PUBLISH_TO_PLATFORM:
-      return 'You published to a platform';
+      return '发布到平台';
     case ActivityType.COMPLIANCE_CHECK:
-      return 'You ran a compliance check';
+      return '运行合规检查';
     case ActivityType.UPDATE_OVERAGE_SETTING:
-      return 'You updated the overage billing setting';
+      return '更新超额计费设置';
     default:
-      return 'Unknown action occurred';
+      return '未知操作';
   }
 }
 
@@ -90,11 +90,11 @@ export default async function ActivityPage() {
   return (
     <section className="flex-1 p-4 lg:p-8">
       <h1 className="text-lg lg:text-2xl font-medium text-gray-900 mb-6">
-        Activity Log
+        活动日志
       </h1>
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>近期活动</CardTitle>
         </CardHeader>
         <CardContent>
           {logs.length > 0 ? (
@@ -111,7 +111,7 @@ export default async function ActivityPage() {
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
                         {formattedAction}
-                        {log.ipAddress && ` from IP ${log.ipAddress}`}
+                        {log.ipAddress && ` · 来自 IP ${log.ipAddress}`}
                       </p>
                       <p className="text-xs text-gray-500">
                         {getRelativeTime(new Date(log.timestamp))}
@@ -125,11 +125,10 @@ export default async function ActivityPage() {
             <div className="flex flex-col items-center justify-center text-center py-12">
               <AlertCircle className="h-12 w-12 text-orange-500 mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No activity yet
+                还没有活动记录
               </h3>
               <p className="text-sm text-gray-500 max-w-sm">
-                When you perform actions like signing in or updating your
-                account, they'll appear here.
+                当你执行登录、修改账号等操作时,会在这里看到记录。
               </p>
             </div>
           )}

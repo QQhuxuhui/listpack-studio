@@ -54,7 +54,7 @@ export default async function PricingPage() {
       <p className="text-center text-sm text-gray-500 mt-12">
         {t.pricing.sales_footer_a}{' '}
         <a href="/contact" className="underline">
-          {t.common.sign_in === '登录' ? '联系销售' : 'Talk to sales'}
+          {t.common.talk_to_sales}
         </a>{' '}
         {t.pricing.sales_footer_b}
       </p>
@@ -90,9 +90,9 @@ function PricingCard({ plan, t }: { plan: PricedPlan; t: Dictionary }) {
       <p className="text-4xl font-semibold text-gray-900 mb-1">
         {plan.monthlyPriceCents !== null
           ? `$${plan.monthlyPriceCents / 100}`
-          : 'Custom'}
+          : '定制'}
         {plan.monthlyPriceCents !== null && (
-          <span className="text-sm font-normal text-gray-600 ml-1">/ month</span>
+          <span className="text-sm font-normal text-gray-600 ml-1">/ 月</span>
         )}
       </p>
       <p className="text-sm text-gray-600 mb-6">

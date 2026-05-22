@@ -1,21 +1,12 @@
 /**
  * Pure dictionary registry — safe to import from client OR server.
  *
- * IMPORTANT: this module MUST NOT import any `next/headers`,
- * `server-only`, or anything that touches request-bound APIs. The
- * server-side cookie reader lives in `./dictionary.ts`; the client
- * cookie reader lives in `./client.ts`. Both import the registry from
- * here so they share the same dictionary instances without pulling
- * server-only modules into the client bundle.
- *
- * Why split: a single `dictionary.ts` that imports `next/headers`
- * leaks into any client module that needs `getDictionarySync` (e.g.
- * `lib/i18n/client.ts`'s useDictionary hook), breaking
- * `next build` with "You're importing a component that needs
- * next/headers" — exactly the D58.2 review finding.
+ * MUST NOT import `next/headers` or `server-only`. The server cookie
+ * reader is in `./dictionary.ts`; the client one is in `./client.ts`.
+ * Both import this registry so they share dictionary instances without
+ * dragging server-only modules into the client bundle.
  */
 
-import { en } from './dictionaries/en';
 import { zhCN } from './dictionaries/zh-CN';
 import {
   DEFAULT_LOCALE,
@@ -24,7 +15,6 @@ import {
 } from './types';
 
 export const REGISTRY: Record<Locale, Dictionary> = {
-  en,
   'zh-CN': zhCN,
 };
 

@@ -84,7 +84,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   if (rows.length === 0) {
     return {
-      error: 'Invalid email or password. Please try again.',
+      error: '邮箱或密码错误,请重试。',
       email,
       password,
     };
@@ -99,7 +99,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   if (!isPasswordValid) {
     return {
-      error: 'Invalid email or password. Please try again.',
+      error: '邮箱或密码错误,请重试。',
       email,
       password,
     };
@@ -147,7 +147,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
   if (existingUser.length > 0) {
     return {
-      error: 'Failed to create user. Please try again.',
+      error: '创建账号失败,请重试。',
       email,
       password,
     };
@@ -160,7 +160,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
   if (!createdUser) {
     return {
-      error: 'Failed to create user. Please try again.',
+      error: '创建账号失败,请重试。',
       email,
       password,
     };
@@ -184,7 +184,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
       .limit(1);
 
     if (!invitation) {
-      return { error: 'Invalid or expired invitation.', email, password };
+      return { error: '邀请链接无效或已过期。', email, password };
     }
 
     workspaceId = invitation.workspaceId;
@@ -207,7 +207,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     // Default: each new signup gets a personal workspace, owner role.
     const newWorkspace: NewWorkspace = {
       slug: workspaceSlugFor(email),
-      name: `${email.split('@')[0]}'s Workspace`,
+      name: `${email.split('@')[0]} 的工作区`,
       ownerUserId: createdUser.id,
       planId: 'free',
     };
@@ -219,7 +219,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
     if (!createdWorkspace) {
       return {
-        error: 'Failed to create workspace. Please try again.',
+        error: '创建工作区失败,请重试。',
         email,
         password,
       };
@@ -329,7 +329,7 @@ export const updatePassword = validatedActionWithUser(
         currentPassword,
         newPassword,
         confirmPassword,
-        error: 'Current password is incorrect.',
+        error: '当前密码不正确。',
       };
     }
     if (currentPassword === newPassword) {
@@ -337,7 +337,7 @@ export const updatePassword = validatedActionWithUser(
         currentPassword,
         newPassword,
         confirmPassword,
-        error: 'New password must be different from the current password.',
+        error: '新密码不能与当前密码相同。',
       };
     }
     if (confirmPassword !== newPassword) {
@@ -345,7 +345,7 @@ export const updatePassword = validatedActionWithUser(
         currentPassword,
         newPassword,
         confirmPassword,
-        error: 'New password and confirmation password do not match.',
+        error: '两次输入的新密码不一致。',
       };
     }
 
@@ -364,7 +364,7 @@ export const updatePassword = validatedActionWithUser(
       ),
     ]);
 
-    return { success: 'Password updated successfully.' };
+    return { success: '密码修改成功。' };
   },
 );
 
@@ -381,7 +381,7 @@ export const deleteAccount = validatedActionWithUser(
     if (!isPasswordValid) {
       return {
         password,
-        error: 'Incorrect password. Account deletion failed.',
+        error: '密码错误,账号删除失败。',
       };
     }
 
@@ -419,8 +419,8 @@ export const deleteAccount = validatedActionWithUser(
 );
 
 const updateAccountSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  email: z.string().email('Invalid email address'),
+  name: z.string().min(1, '请填写姓名').max(100),
+  email: z.string().email('邮箱格式不正确'),
 });
 
 export const updateAccount = validatedActionWithUser(
@@ -438,7 +438,7 @@ export const updateAccount = validatedActionWithUser(
       ),
     ]);
 
-    return { name, success: 'Account updated successfully.' };
+    return { name, success: '账号信息已更新。' };
   },
 );
 
@@ -453,7 +453,7 @@ export const removeWorkspaceMember = validatedActionWithUser(
     const userWithWorkspace = await getUserWithWorkspace(user.id);
 
     if (!userWithWorkspace?.workspaceId) {
-      return { error: 'User is not part of a workspace' };
+      return { error: '当前用户没有所属工作区' };
     }
 
     await db
@@ -471,12 +471,12 @@ export const removeWorkspaceMember = validatedActionWithUser(
       ActivityType.REMOVE_WORKSPACE_MEMBER,
     );
 
-    return { success: 'Member removed successfully' };
+    return { success: '成员已移除。' };
   },
 );
 
 const inviteWorkspaceMemberSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('邮箱格式不正确'),
   role: z.enum(['admin', 'editor', 'viewer']),
 });
 
@@ -487,7 +487,7 @@ export const inviteWorkspaceMember = validatedActionWithUser(
     const userWithWorkspace = await getUserWithWorkspace(user.id);
 
     if (!userWithWorkspace?.workspaceId) {
-      return { error: 'User is not part of a workspace' };
+      return { error: '当前用户没有所属工作区' };
     }
 
     const existingMember = await db
@@ -503,7 +503,7 @@ export const inviteWorkspaceMember = validatedActionWithUser(
       .limit(1);
 
     if (existingMember.length > 0) {
-      return { error: 'User is already a member of this workspace' };
+      return { error: '该用户已是此工作区成员。' };
     }
 
     const existingInvitation = await db
@@ -519,7 +519,7 @@ export const inviteWorkspaceMember = validatedActionWithUser(
       .limit(1);
 
     if (existingInvitation.length > 0) {
-      return { error: 'An invitation has already been sent to this email' };
+      return { error: '已向该邮箱发送过邀请。' };
     }
 
     const [createdInvite] = await db
@@ -559,7 +559,7 @@ export const inviteWorkspaceMember = validatedActionWithUser(
       console.warn('invite email failed', err);
     }
 
-    return { success: 'Invitation sent successfully' };
+    return { success: '邀请已发送。' };
   },
 );
 
@@ -567,7 +567,7 @@ export const inviteWorkspaceMember = validatedActionWithUser(
 
 
 const requestPasswordResetSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('邮箱格式不正确'),
 });
 
 /**
@@ -605,7 +605,7 @@ export const requestPasswordReset = validatedAction(
     }
 
     return {
-      success: 'If that email is on file, we just sent a reset link.',
+      success: '如果该邮箱已注册,我们已发送密码重置链接。',
     };
   },
 );
@@ -617,7 +617,7 @@ const resetPasswordSchema = z
     confirmPassword: z.string().min(8),
   })
   .refine((d) => d.password === d.confirmPassword, {
-    message: "Passwords don't match",
+    message: '两次输入的密码不一致',
     path: ['confirmPassword'],
   });
 
@@ -640,7 +640,7 @@ export const resetPassword = validatedAction(
       userId = await verifyResetToken(token);
     } catch (err) {
       return {
-        error: `Invalid or expired reset link: ${(err as Error).message}`,
+        error: `重置链接无效或已过期: ${(err as Error).message}`,
       };
     }
 
@@ -650,7 +650,7 @@ export const resetPassword = validatedAction(
       .where(eq(users.id, userId))
       .limit(1);
     if (!user || user.deletedAt) {
-      return { error: 'Account not found.' };
+      return { error: '账号不存在。' };
     }
 
     const passwordHash = await hashPassword(password);
@@ -683,7 +683,7 @@ export const updateOverageEnabled = validatedActionWithUser(
   async (data, _, user) => {
     const userWithWorkspace = await getUserWithWorkspace(user.id);
     if (!userWithWorkspace?.workspaceId) {
-      return { error: 'User is not part of a workspace' };
+      return { error: '当前用户没有所属工作区' };
     }
 
     const wantEnabled = data.enabled === 'true';
@@ -700,8 +700,8 @@ export const updateOverageEnabled = validatedActionWithUser(
 
     return {
       success: wantEnabled
-        ? 'Overage billing enabled — runs past quota will be billed.'
-        : 'Overage billing disabled — runs past quota will be rejected.',
+        ? '已开启超额计费 —— 超出配额的任务将按超额费率扣费。'
+        : '已关闭超额计费 —— 超出配额的任务将被拒绝。',
     };
   },
 );

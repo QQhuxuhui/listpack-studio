@@ -116,33 +116,33 @@ export default async function HomePage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <Value
               icon={<ShieldCheck className="h-5 w-5" />}
-              title="Compliance before generation"
-              body="34+ pre-seeded rules from Amazon, Shopify, eBay, Temu and SHEIN — checked against your source before we burn a single LLM token."
+              title="先合规,再生成"
+              body="34+ 条来自 Amazon / Shopify / eBay / Temu / SHEIN 的内置规则,先对原图做合规检查,再决定是否烧 LLM token。"
             />
             <Value
               icon={<Sparkles className="h-5 w-5" />}
-              title="Real Agent, not a single prompt"
-              body="A planner agent decides which executors to run (scene / A+ / banner) per intent. A critic loop refines the output. Damped to avoid prompt-swing oscillation."
+              title="真 Agent,不是单条 Prompt"
+              body="Planner agent 按意图决定运行哪些执行器(场景图 / A+ / banner),critic 闭环修瑕疵,带阻尼防止震荡。"
             />
             <Value
               icon={<Layers className="h-5 w-5" />}
-              title="9 platform slots in one pass"
-              body="Amazon main / Shopify featured / eBay first / Temu hero / SHEIN PDP — sized, padded and stamped without manual cropping."
+              title="一次跑完 9 个平台位"
+              body="Amazon 主图 / Shopify featured / eBay 首图 / Temu hero / SHEIN PDP —— 自动尺寸、留白、烙水印,无需手动裁切。"
             />
             <Value
               icon={<Globe className="h-5 w-5" />}
-              title="EU AI Act ready"
-              body="Every generated image carries C2PA XMP metadata declaring its AI provenance — meet 2026 disclosure rules without bolt-ons."
+              title="符合欧盟 AI 法案"
+              body="每张生成图都带 C2PA XMP 元数据声明 AI 来源 —— 不靠外挂工具就能满足 2026 年披露要求。"
             />
             <Value
               icon={<Workflow className="h-5 w-5" />}
-              title="Human-in-the-loop"
-              body="Pause, cancel, or fork any run. Re-drive from the persisted state. Your team can intervene without rerunning from scratch."
+              title="人机协同"
+              body="任何任务可暂停、取消、分叉,可从持久化状态续跑,团队可中途介入,不必从头重来。"
             />
             <Value
               icon={<Check className="h-5 w-5" />}
-              title="Transparent pricing"
-              body="Quota and overage rates shown up-front. Never auto-upgraded. Promised in the user agreement — see /pricing footer."
+              title="价格透明"
+              body="配额和超额单价提前公示,绝不自动升档。在用户协议中明确承诺 —— 详见 /pricing 页脚。"
             />
           </div>
         </div>
@@ -173,19 +173,19 @@ export default async function HomePage() {
                 <p className="text-2xl font-semibold text-gray-900 mb-1">
                   {plan.monthlyPriceCents !== null
                     ? `$${plan.monthlyPriceCents / 100}`
-                    : 'Custom'}
+                    : '定制'}
                   {plan.monthlyPriceCents !== null && (
                     <span className="text-sm font-normal text-gray-500">
                       {' '}
-                      /mo
+                      /月
                     </span>
                   )}
                 </p>
                 <p className="text-xs text-gray-600">
-                  {plan.skuQuota} SKUs / month
+                  {plan.skuQuota} SKU / 月
                   {plan.overagePerSkuUsd !== null
-                    ? `, $${plan.overagePerSkuUsd} overage`
-                    : ', no overage'}
+                    ? `,超额 $${plan.overagePerSkuUsd}`
+                    : ',不允许超额'}
                 </p>
               </div>
             ))}
@@ -203,24 +203,24 @@ export default async function HomePage() {
       <section className="py-20 bg-gray-50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-semibold text-gray-900 text-center mb-12">
-            Frequently asked
+            常见问题
           </h2>
           <div className="space-y-6">
             <FAQ
-              q="How is this different from Photoroom / Booth.ai / Pebblely?"
-              a="Those tools generate one image at a time. ListPack runs an agent that checks compliance, plans the asset bundle, generates each piece, refines via a critic loop and sizes for every platform in one stream. You get a review-ready pack, not a folder of photos to QC."
+              q="和 Photoroom / Booth.ai / Pebblely 有什么不同?"
+              a="那些工具一次生成一张图。ListPack 跑一个 Agent —— 先做合规检查,再规划素材包,逐张生成,critic 闭环修瑕疵,并按各平台尺寸出图。你拿到的是一份可直接送审的素材包,而不是一堆需要再筛的图。"
             />
             <FAQ
-              q="Do you store my product photos?"
-              a="Source uploads are kept only as long as your retention setting (default 30 days, free tier 7 days). All outputs are yours to export — we never use your assets to train models."
+              q="你们会保存我的商品图吗?"
+              a="原图只在你设定的保留期内留存(默认 30 天,免费版 7 天)。所有输出归你所有可随时导出 —— 我们绝不会用你的素材训练模型。"
             />
             <FAQ
-              q="What about EU AI Act disclosure?"
-              a="Every generated image embeds C2PA XMP metadata declaring it as AI-generated. Importers from August 2026 can prove provenance without bolting on a third tool."
+              q="欧盟 AI 法案披露怎么办?"
+              a="每张生成图都内嵌 C2PA XMP 元数据声明 AI 来源。从 2026 年 8 月起,进口商可直接据此证明素材出处,无需额外工具。"
             />
             <FAQ
-              q="Can I cancel anytime?"
-              a="Yes. Paid tiers carry a 7- or 14-day full refund (depends on tier — see /pricing). Cancellation stops billing at period end and you keep export access for 30 days."
+              q="可以随时取消吗?"
+              a="可以。付费档提供 7 或 14 天全额退款(因档位而异,详见 /pricing)。取消后当前计费周期结束停扣,导出权限再保留 30 天。"
             />
           </div>
         </div>
@@ -247,9 +247,9 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-sm text-gray-500 flex flex-col md:flex-row justify-between gap-4">
           <span>© {new Date().getFullYear()} ListPack Studio</span>
           <nav className="flex gap-6">
-            <Link href="/pricing">Pricing</Link>
-            <Link href="/sign-up">Sign up</Link>
-            <Link href="/sign-in">Sign in</Link>
+            <Link href="/pricing">价格</Link>
+            <Link href="/sign-up">注册</Link>
+            <Link href="/sign-in">登录</Link>
             <a href="https://github.com/QQhuxuhui/listpack-studio" target="_blank" rel="noreferrer">
               GitHub
             </a>
@@ -277,7 +277,7 @@ function Step({
         {n}
       </div>
       <div className="flex items-center gap-2 mb-2 text-gray-500 text-sm">
-        {icon} step {n}
+        {icon} 第 {n} 步
       </div>
       <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
       <p className="text-gray-600 text-sm leading-relaxed">{body}</p>

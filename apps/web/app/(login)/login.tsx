@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { CircleIcon, Loader2 } from 'lucide-react';
 import { signIn, signUp } from './actions';
 import { ActionState } from '@/lib/auth/middleware';
+import { useDictionary } from '@/lib/i18n/client';
 
 export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
   const searchParams = useSearchParams();
@@ -19,6 +20,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
     mode === 'signin' ? signIn : signUp,
     { error: '' }
   );
+  const { t } = useDictionary();
 
   return (
     <div className="min-h-[100dvh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
@@ -27,9 +29,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
           <CircleIcon className="h-12 w-12 text-orange-500" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          {mode === 'signin'
-            ? 'Sign in to your account'
-            : 'Create your account'}
+          {mode === 'signin' ? t.auth.sign_in_h2 : t.auth.sign_up_h2}
         </h2>
       </div>
 
@@ -43,7 +43,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
               htmlFor="email"
               className="block text-sm font-medium text-gray-700"
             >
-              Email
+              {t.auth.email_label}
             </Label>
             <div className="mt-1">
               <Input
@@ -55,7 +55,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
                 required
                 maxLength={50}
                 className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
-                placeholder="Enter your email"
+                placeholder={t.auth.placeholder_email}
               />
             </div>
           </div>
@@ -65,7 +65,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
               htmlFor="password"
               className="block text-sm font-medium text-gray-700"
             >
-              Password
+              {t.auth.password_label}
             </Label>
             <div className="mt-1">
               <Input
@@ -80,7 +80,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
                 minLength={8}
                 maxLength={100}
                 className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
-                placeholder="Enter your password"
+                placeholder={t.auth.placeholder_password}
               />
             </div>
           </div>
@@ -98,12 +98,12 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
               {pending ? (
                 <>
                   <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                  Loading...
+                  {t.common.loading}
                 </>
               ) : mode === 'signin' ? (
-                'Sign in'
+                t.auth.submit_sign_in
               ) : (
-                'Sign up'
+                t.auth.submit_sign_up
               )}
             </Button>
           </div>
@@ -115,10 +115,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
               href="/forgot-password"
               className="text-sm text-orange-600 hover:text-orange-700"
             >
-              {/* Static link text — login.tsx already renders most strings
-                  from prior structure; cast to use auth.forgot_password
-                  without dragging the full i18n migration into this PR. */}
-              Forgot password?
+              {t.auth.forgot_password}
             </Link>
           </div>
         )}
@@ -131,8 +128,8 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-gray-50 text-gray-500">
                 {mode === 'signin'
-                  ? 'New to our platform?'
-                  : 'Already have an account?'}
+                  ? t.auth.new_to_platform
+                  : t.auth.already_have_account}
               </span>
             </div>
           </div>
@@ -144,9 +141,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
               }${priceId ? `&priceId=${priceId}` : ''}`}
               className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-full shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             >
-              {mode === 'signin'
-                ? 'Create an account'
-                : 'Sign in to existing account'}
+              {mode === 'signin' ? t.auth.create_account : t.auth.sign_in_link}
             </Link>
           </div>
         </div>
