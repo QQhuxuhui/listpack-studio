@@ -117,7 +117,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
     return createCheckoutSession({ workspace: ws, priceId });
   }
 
-  redirect('/dashboard');
+  redirect('/studio');
 });
 
 const signUpSchema = z.object({
@@ -292,9 +292,8 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     return createCheckoutSession({ workspace: ws, priceId });
   }
 
-  // New users land on /onboarding (D42) which auto-redirects existing users
-  // (those who already have a listing_pack) onward to /dashboard.
-  redirect('/onboarding');
+  // New users land directly in the studio.
+  redirect('/studio');
 });
 
 export async function signOut() {
@@ -661,7 +660,7 @@ export const resetPassword = validatedAction(
 
     await logActivity(null, user.id, ActivityType.UPDATE_PASSWORD);
     await setSession(user);
-    redirect('/dashboard');
+    redirect('/studio');
   },
 );
 
