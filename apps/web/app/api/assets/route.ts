@@ -4,8 +4,8 @@
  * Multipart upload (`file`) → storage backend + assets row.
  * Returns `{ id, storageKey, publicUrl, mime, fileSize, sha256 }`.
  *
- * Used both standalone (Brand Kit, future uploads) and as a sub-step of
- * /api/agent/listing-pack/runs auto-create.
+ * Used by the image studio to upload user reference images (pass
+ * `type=user_upload`).
  */
 
 import { NextResponse } from 'next/server';
@@ -53,8 +53,30 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const file = form.get('file');
-  const type = (form.get('type') as string | null) ?? 'source_photo';
+  const rawType = (form.get('type') as string | null) ?? 'user_upload';
   const category = (form.get('category') as string | null) ?? null;
+
+  const ALLOWED_TYPES = new Set([
+    'source_photo',
+    'output',
+    'intermediate',
+    'brand_reference',
+    'user_upload',
+    'generated',
+  ] as const);
+  if (!ALLOWED_TYPES.has(rawType as never)) {
+    return NextResponse.json(
+      { error: `invalid type: ${rawType}` },
+      { status: 400 },
+    );
+  }
+  const type = rawType as
+    | 'source_photo'
+    | 'output'
+    | 'intermediate'
+    | 'brand_reference'
+    | 'user_upload'
+    | 'generated';
 
   if (!(file instanceof File)) {
     return NextResponse.json(
@@ -84,7 +106,7 @@ export async function POST(request: Request) {
   const created = await insertAsset({
     workspaceId: ws.id,
     uploaderUserId: user.id,
-    type: type as 'source_photo' | 'output' | 'intermediate' | 'brand_reference',
+    type,
     storageKey: 'pending', // overwritten below
     mime,
     fileSize: bytes.length,
