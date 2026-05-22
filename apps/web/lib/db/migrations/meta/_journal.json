@@ -15,6 +15,13 @@
       "when": 1779255527469,
       "tag": "0001_keen_rhodey",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779440410630,
+      "tag": "0002_studio_redesign",
+      "breakpoints": true
     }
   ]
 }

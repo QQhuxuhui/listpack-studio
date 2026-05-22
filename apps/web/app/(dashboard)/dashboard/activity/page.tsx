@@ -7,9 +7,8 @@ import {
   Lock,
   LogOut,
   Mail,
+  MessageSquare,
   Settings,
-  ShieldAlert,
-  Truck,
   UserCog,
   UserMinus,
   UserPlus,
@@ -29,9 +28,8 @@ const iconMap: Record<ActivityType, LucideIcon> = {
   [ActivityType.REMOVE_WORKSPACE_MEMBER]: UserMinus,
   [ActivityType.INVITE_WORKSPACE_MEMBER]: Mail,
   [ActivityType.ACCEPT_INVITATION]: CheckCircle,
-  [ActivityType.CREATE_LISTING_PACK]: ImagePlus,
-  [ActivityType.PUBLISH_TO_PLATFORM]: Truck,
-  [ActivityType.COMPLIANCE_CHECK]: ShieldAlert,
+  [ActivityType.CREATE_IMAGE_CHAT]: MessageSquare,
+  [ActivityType.GENERATE_IMAGE]: ImagePlus,
   [ActivityType.UPDATE_OVERAGE_SETTING]: CreditCard,
 };
 
@@ -71,12 +69,10 @@ function formatAction(action: ActivityType): string {
       return '邀请工作区成员';
     case ActivityType.ACCEPT_INVITATION:
       return '接受邀请';
-    case ActivityType.CREATE_LISTING_PACK:
-      return '创建上架包';
-    case ActivityType.PUBLISH_TO_PLATFORM:
-      return '发布到平台';
-    case ActivityType.COMPLIANCE_CHECK:
-      return '运行合规检查';
+    case ActivityType.CREATE_IMAGE_CHAT:
+      return '创建图像对话';
+    case ActivityType.GENERATE_IMAGE:
+      return '生成图像';
     case ActivityType.UPDATE_OVERAGE_SETTING:
       return '更新超额计费设置';
     default:
