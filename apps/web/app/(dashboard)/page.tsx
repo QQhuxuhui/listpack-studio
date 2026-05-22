@@ -3,19 +3,17 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowRight,
   Check,
-  ShieldCheck,
   Sparkles,
-  Workflow,
-  Image as ImageIcon,
+  ImageIcon,
   Layers,
-  Globe,
+  MessagesSquare,
+  Wand2,
+  Cpu,
 } from 'lucide-react';
 import { publicPlans } from '@/lib/payments/plans';
-import { getDictionary } from '@/lib/i18n/dictionary';
 
 export default async function HomePage() {
   const plans = publicPlans();
-  const { t } = await getDictionary();
 
   return (
     <main className="bg-white">
@@ -23,21 +21,20 @@ export default async function HomePage() {
       <section className="py-20 sm:py-24">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium mb-6">
-            <Sparkles className="h-3.5 w-3.5" /> {t.landing.badge}
+            <Sparkles className="h-3.5 w-3.5" /> 多模型 AI 出图工作台
           </span>
           <h1 className="text-4xl font-bold text-gray-900 tracking-tight sm:text-5xl lg:text-6xl">
-            {t.landing.hero_h1_a}{' '}
-            <span className="block text-orange-500">
-              {t.landing.hero_h1_b}
-            </span>
+            一句话画图,
+            <span className="block text-orange-500">一张图改图。</span>
           </h1>
           <p className="mt-6 text-lg text-gray-600 max-w-2xl mx-auto">
-            {t.landing.hero_sub}
+            ListPack Studio 把 GPT 与 Gemini 系列出图模型整合到同一个对话界面 ——
+            文生图、图生图、参考图编辑,一次搞定。
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/sign-up">
               <Button size="lg" className="rounded-full text-base px-6">
-                {t.landing.cta_start_free}
+                免费开始
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
@@ -47,31 +44,13 @@ export default async function HomePage() {
                 variant="outline"
                 className="rounded-full text-base px-6"
               >
-                {t.landing.cta_see_pricing}
+                查看价格
               </Button>
             </Link>
           </div>
-          <p className="mt-4 text-xs text-gray-500">{t.landing.trust_line}</p>
-        </div>
-      </section>
-
-      {/* ── Platform badges ──────────────────────────────────────────── */}
-      <section className="py-8 bg-gray-50 border-y border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500 mb-4 uppercase tracking-wider">
-            {t.landing.platforms_label}
+          <p className="mt-4 text-xs text-gray-500">
+            无需信用卡 · 每月赠 5 张 · 随时取消
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-gray-700 font-medium">
-            <span>Amazon</span>
-            <span className="text-gray-300">·</span>
-            <span>Shopify</span>
-            <span className="text-gray-300">·</span>
-            <span>eBay</span>
-            <span className="text-gray-300">·</span>
-            <span>Temu</span>
-            <span className="text-gray-300">·</span>
-            <span>SHEIN</span>
-          </div>
         </div>
       </section>
 
@@ -79,29 +58,29 @@ export default async function HomePage() {
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-semibold text-gray-900 text-center mb-3">
-            {t.landing.how_h2}
+            三步出图
           </h2>
           <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
-            {t.landing.how_sub}
+            登录就是一个对话框,告诉它你想要什么,模型直接给图。
           </p>
           <div className="grid md:grid-cols-3 gap-8">
             <Step
               n={1}
-              icon={<ImageIcon className="h-5 w-5" />}
-              title={t.landing.step1_title}
-              body={t.landing.step1_body}
+              icon={<MessagesSquare className="h-5 w-5" />}
+              title="描述你想要的画面"
+              body="中文 / 英文都行,可选数量、尺寸或比例。需要图生图就拖一张参考图进来。"
             />
             <Step
               n={2}
-              icon={<Workflow className="h-5 w-5" />}
-              title={t.landing.step2_title}
-              body={t.landing.step2_body}
+              icon={<Wand2 className="h-5 w-5" />}
+              title="选模型,一键生成"
+              body="GPT Image / Gemini 3.1 Flash / Gemini 3 Pro,按风格和速度自由切换。"
             />
             <Step
               n={3}
-              icon={<Layers className="h-5 w-5" />}
-              title={t.landing.step3_title}
-              body={t.landing.step3_body}
+              icon={<ImageIcon className="h-5 w-5" />}
+              title="下载、再迭代"
+              body="所有产出按对话保留,可以接着追问微调,也可以下载本地。"
             />
           </div>
         </div>
@@ -111,38 +90,38 @@ export default async function HomePage() {
       <section className="py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-semibold text-gray-900 text-center mb-12">
-            {t.landing.values_h2}
+            为什么选 ListPack Studio
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <Value
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title="先合规,再生成"
-              body="34+ 条来自 Amazon / Shopify / eBay / Temu / SHEIN 的内置规则,先对原图做合规检查,再决定是否烧 LLM token。"
-            />
-            <Value
-              icon={<Sparkles className="h-5 w-5" />}
-              title="真 Agent,不是单条 Prompt"
-              body="Planner agent 按意图决定运行哪些执行器(场景图 / A+ / banner),critic 闭环修瑕疵,带阻尼防止震荡。"
+              icon={<Cpu className="h-5 w-5" />}
+              title="多模型同台"
+              body="把 GPT 与 Gemini 的图像模型放在同一个对话里,按需切,不必跨平台。"
             />
             <Value
               icon={<Layers className="h-5 w-5" />}
-              title="一次跑完 9 个平台位"
-              body="Amazon 主图 / Shopify featured / eBay 首图 / Temu hero / SHEIN PDP —— 自动尺寸、留白、烙水印,无需手动裁切。"
+              title="文生图 + 图生图"
+              body="纯文本 prompt 也好,拖一张参考图也好,接口都封装好,模型自动按形态走。"
             />
             <Value
-              icon={<Globe className="h-5 w-5" />}
-              title="符合欧盟 AI 法案"
-              body="每张生成图都带 C2PA XMP 元数据声明 AI 来源 —— 不靠外挂工具就能满足 2026 年披露要求。"
+              icon={<MessagesSquare className="h-5 w-5" />}
+              title="对话式迭代"
+              body="每次出图都挂在对话里,可以追问继续改、下载、再当作输入 —— 工作流不被打断。"
             />
             <Value
-              icon={<Workflow className="h-5 w-5" />}
-              title="人机协同"
-              body="任何任务可暂停、取消、分叉,可从持久化状态续跑,团队可中途介入,不必从头重来。"
+              icon={<Sparkles className="h-5 w-5" />}
+              title="中文 prompt 友好"
+              body="自带中文优化,不必为了出图临时切英文,直接用你的口语表达。"
             />
             <Value
               icon={<Check className="h-5 w-5" />}
-              title="价格透明"
-              body="配额和超额单价提前公示,绝不自动升档。在用户协议中明确承诺 —— 详见 /pricing 页脚。"
+              title="配额透明"
+              body="按张计费,提前公示,绝不自动升档。免费档每月 5 张,慢慢用、不焦虑。"
+            />
+            <Value
+              icon={<ArrowRight className="h-5 w-5" />}
+              title="即插即走"
+              body="不需要配 API Key、不需要选 GPU,登录就用。所有云端账户和密钥我们这边管。"
             />
           </div>
         </div>
@@ -152,10 +131,10 @@ export default async function HomePage() {
       <section className="py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-semibold text-gray-900 mb-3">
-            {t.landing.pricing_teaser_h2}
+            按你的用量付费
           </h2>
           <p className="text-gray-600 mb-10 max-w-2xl mx-auto">
-            {t.landing.pricing_teaser_sub}
+            免费起步,出图多了再升档。超额费率提前公示,永远不会比升一档贵。
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {plans.map((plan) => (
@@ -182,7 +161,7 @@ export default async function HomePage() {
                   )}
                 </p>
                 <p className="text-xs text-gray-600">
-                  {plan.skuQuota} SKU / 月
+                  {plan.skuQuota} 张 / 月
                   {plan.overagePerSkuUsd !== null
                     ? `,超额 $${plan.overagePerSkuUsd}`
                     : ',不允许超额'}
@@ -192,7 +171,7 @@ export default async function HomePage() {
           </div>
           <Link href="/pricing" className="inline-block mt-8">
             <Button variant="outline" className="rounded-full">
-              {t.landing.pricing_teaser_link}
+              查看完整价格表
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>
@@ -207,20 +186,20 @@ export default async function HomePage() {
           </h2>
           <div className="space-y-6">
             <FAQ
-              q="和 Photoroom / Booth.ai / Pebblely 有什么不同?"
-              a="那些工具一次生成一张图。ListPack 跑一个 Agent —— 先做合规检查,再规划素材包,逐张生成,critic 闭环修瑕疵,并按各平台尺寸出图。你拿到的是一份可直接送审的素材包,而不是一堆需要再筛的图。"
+              q="支持哪些模型?"
+              a="目前接入 GPT Image 系列、Gemini 3.1 Flash Image、Gemini 3 Pro Image。后续会陆续加入更多。免费档可用 Gemini,Pro 档解锁 GPT Image。"
             />
             <FAQ
-              q="你们会保存我的商品图吗?"
-              a="原图只在你设定的保留期内留存(默认 30 天,免费版 7 天)。所有输出归你所有可随时导出 —— 我们绝不会用你的素材训练模型。"
+              q="可以用自己的 API Key 吗?"
+              a="MVP 阶段使用我们统一的中转网关,密钥由服务端持有 —— 你不必维护任何上游账号。后续会开放 BYO Key 模式。"
             />
             <FAQ
-              q="欧盟 AI 法案披露怎么办?"
-              a="每张生成图都内嵌 C2PA XMP 元数据声明 AI 来源。从 2026 年 8 月起,进口商可直接据此证明素材出处,无需额外工具。"
+              q="数据会留多久?"
+              a="对话和产出按工作区独立隔离,默认长期保留,可在账号设置里手动删除。我们不会用你的产出训练任何模型。"
             />
             <FAQ
               q="可以随时取消吗?"
-              a="可以。付费档提供 7 或 14 天全额退款(因档位而异,详见 /pricing)。取消后当前计费周期结束停扣,导出权限再保留 30 天。"
+              a="可以。付费档按月计费,取消后当前周期结束停扣,历史产出 30 天内仍可下载。Pro 以上首次开通带 7 天全额退款。"
             />
           </div>
         </div>
@@ -230,12 +209,14 @@ export default async function HomePage() {
       <section className="py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-semibold text-gray-900 mb-3">
-            {t.landing.final_cta_h2}
+            5 张免费配额,立即开画
           </h2>
-          <p className="text-gray-600 mb-8">{t.landing.final_cta_sub}</p>
+          <p className="text-gray-600 mb-8">
+            注册即用 —— 不要 API Key、不要 GPU、不要等待审核。
+          </p>
           <Link href="/sign-up">
             <Button size="lg" className="rounded-full text-base px-8">
-              {t.landing.final_cta_btn}
+              创建免费账号
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>
@@ -250,7 +231,11 @@ export default async function HomePage() {
             <Link href="/pricing">价格</Link>
             <Link href="/sign-up">注册</Link>
             <Link href="/sign-in">登录</Link>
-            <a href="https://github.com/QQhuxuhui/listpack-studio" target="_blank" rel="noreferrer">
+            <a
+              href="https://github.com/QQhuxuhui/listpack-studio"
+              target="_blank"
+              rel="noreferrer"
+            >
               GitHub
             </a>
           </nav>
