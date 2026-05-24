@@ -8,6 +8,7 @@ import { ChatSidebar } from './ChatSidebar';
 import { ChatCanvas } from './ChatCanvas';
 import { PromptComposer, type ComposerHandle } from './PromptComposer';
 import { Lightbox } from './Lightbox';
+import { MoodboardDrawer } from './MoodboardDrawer';
 import { DEFAULT_MODEL_ID } from '@/lib/studio/models';
 
 import type {
@@ -92,7 +93,6 @@ export function StudioApp() {
   const [lightbox, setLightbox] = useState<{ asset: AssetSummary; msg: ChatMessage } | null>(null);
   const [preset, setPreset] = useState<PresetState | null>(null);
   const composerRef = useRef<ComposerHandle>(null);
-  void moodboardDrawerOpen; void composerRef;  // Task 16 mounts MoodboardDrawer here
 
   // ─── Chat list handlers ────────────────────
   const handleNewChat = useCallback(async () => {
@@ -298,7 +298,20 @@ export function StudioApp() {
           if (lightbox) handleRemix(lightbox.msg, lightbox.asset);
         }}
       />
-      {/* Task 16 will mount MoodboardDrawer here: moodboardDrawerOpen / setMoodboardDrawerOpen / composerRef */}
+      <MoodboardDrawer
+        open={moodboardDrawerOpen}
+        onClose={() => setMoodboardDrawerOpen(false)}
+        currentComposerSnapshot={() =>
+          composerRef.current?.getSnapshot() ?? {
+            prompt: '',
+            model: '',
+            size: '',
+            aspectRatio: '',
+            refs: [],
+          }
+        }
+        onApply={(p) => setPreset(p)}
+      />
     </div>
   );
 }
