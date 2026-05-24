@@ -264,6 +264,102 @@ export async function getAssetsByIdsForWorkspace(
     .where(and(eq(assets.workspaceId, workspaceId), inArray(assets.id, ids)));
 }
 
+// ─── LIBRARY ─────────────────────────────────────────────────────────
+
+export interface LibraryItem {
+  assetId: string;
+  publicUrl: string;
+  mime: string;
+  createdAt: Date;
+  model: string | null;
+  chatId: string;
+  chatTitle: string;
+  messageId: string;
+  promptExcerpt: string;
+}
+
+/**
+ * List generated images across all (non-soft-deleted) chats in a workspace.
+ *
+ * Joins assets → image_messages (via output_asset_ids uuid[]) → image_chats so
+ * we only surface assets that landed in a completed assistant message. Cursor
+ * pagination is `(created_at DESC, id DESC)` — pass `before` as ISO string of
+ * the last item's createdAt to fetch the next page.
+ */
+export async function listLibraryAssets(input: {
+  workspaceId: string;
+  modelFilter?: string[];
+  before?: Date;
+  limit: number;
+}): Promise<LibraryItem[]> {
+  // postgres-js doesn't auto-encode a JS array as a Postgres array literal
+  // for raw template binds, so wrap a comma-joined list with IN(...) via
+  // drizzle's array-spread helper.
+  const modelClause = input.modelFilter?.length
+    ? sql`AND m.model IN (${sql.join(
+        input.modelFilter.map((m) => sql`${m}`),
+        sql`, `,
+      )})`
+    : sql``;
+  const beforeClause = input.before
+    ? sql`AND a.created_at < ${input.before.toISOString()}`
+    : sql``;
+
+  const rows = await db.execute(sql`
+    SELECT
+      a.id AS asset_id,
+      a.storage_key AS asset_storage_key,
+      a.cdn_url AS asset_cdn_url,
+      a.mime,
+      a.created_at,
+      m.model,
+      m.id AS message_id,
+      COALESCE(m.text, '') AS prompt_text,
+      c.id AS chat_id,
+      c.title AS chat_title
+    FROM assets a
+    JOIN image_messages m ON a.id = ANY(m.output_asset_ids)
+    JOIN image_chats c ON m.chat_id = c.id
+    WHERE c.workspace_id = ${input.workspaceId}
+      AND c.deleted_at IS NULL
+      AND m.role = 'assistant'
+      AND m.status = 'completed'
+      ${modelClause}
+      ${beforeClause}
+    ORDER BY a.created_at DESC, a.id DESC
+    LIMIT ${input.limit}
+  `);
+
+  // drizzle's postgres-js driver returns a RowList (array-like) directly.
+  const records = rows as unknown as Array<{
+    asset_id: string;
+    asset_storage_key: string;
+    asset_cdn_url: string | null;
+    mime: string;
+    created_at: string | Date;
+    model: string | null;
+    message_id: string;
+    prompt_text: string;
+    chat_id: string;
+    chat_title: string;
+  }>;
+
+  // Build publicUrl lazily — mirror chats/[id]/route.ts pattern.
+  const { getStorage } = await import('@/lib/storage');
+  const storage = getStorage();
+  return records.map((r) => ({
+    assetId: r.asset_id,
+    publicUrl: r.asset_cdn_url ?? storage.publicUrl(r.asset_storage_key),
+    mime: r.mime,
+    createdAt: new Date(r.created_at),
+    model: r.model,
+    chatId: r.chat_id,
+    chatTitle: r.chat_title,
+    messageId: r.message_id,
+    promptExcerpt: r.prompt_text.slice(0, 80),
+  }));
+}
+
 // ─── QUOTA ───────────────────────────────────────────────────────────
 
 export interface QuotaState {
