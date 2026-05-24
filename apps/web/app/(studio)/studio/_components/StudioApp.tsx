@@ -117,6 +117,10 @@ export function StudioApp() {
             models={modelsResp.models}
             defaultModel={modelsResp.defaultModel}
             onGenerated={handleGenerated}
+            presetState={null}
+            consumePreset={() => {}}
+            pendingGenerate={false}
+            onOpenMoodboardDrawer={() => {}}
           />
         )}
       </div>
