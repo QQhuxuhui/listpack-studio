@@ -10,6 +10,7 @@
 import 'server-only';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from './drizzle';
+import { getStorage } from '@/lib/storage';
 import {
   ActivityType,
   activityLogs,
@@ -358,8 +359,8 @@ export async function listLibraryAssets(input: {
     chat_title: string;
   }>;
 
-  // Build publicUrl lazily — mirror chats/[id]/route.ts pattern.
-  const { getStorage } = await import('@/lib/storage');
+  // TODO(phase2): add GIN index on image_messages.output_asset_ids — current
+  // `a.id = ANY(m.output_asset_ids)` cannot use a btree, will seq-scan at scale.
   const storage = getStorage();
   return records.map((r) => ({
     assetId: r.asset_id,
