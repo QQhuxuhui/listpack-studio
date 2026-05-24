@@ -1,16 +1,27 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Download, Sparkles, ImageIcon } from 'lucide-react';
-import type { AssetSummary, ChatMessage } from './types';
+import { Download, Sparkles, ImageIcon, RotateCw } from 'lucide-react';
+import type { AssetSummary, ChatMessage, RefRole } from './types';
+import { EmptyStateSamples, type SamplePrompt } from './EmptyStateSamples';
 
 interface Props {
   messages: ChatMessage[];
   assetMap: Map<string, AssetSummary>;
   loading: boolean;
+  pendingGenerate: boolean;
+  onOpenLightbox: (asset: AssetSummary, msg: ChatMessage) => void;
+  onCardReroll: (msg: ChatMessage) => void;
+  onPickSample: (s: SamplePrompt) => void;
 }
 
-export function ChatCanvas({ messages, assetMap, loading }: Props) {
+const ROLE_RING: Record<RefRole, string> = {
+  content: 'ring-gray-300',
+  style: 'ring-purple-300',
+  character: 'ring-emerald-300',
+};
+
+export function ChatCanvas({ messages, assetMap, loading, pendingGenerate, onOpenLightbox, onCardReroll, onPickSample }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -25,23 +36,20 @@ export function ChatCanvas({ messages, assetMap, loading }: Props) {
   }
 
   if (messages.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 p-8">
-        <Sparkles className="h-10 w-10 text-orange-300 mb-3" />
-        <p className="text-base font-medium text-gray-700 mb-1">
-          描述你想生成的图像
-        </p>
-        <p className="text-sm">
-          支持文生图,也可附加参考图进行图生图编辑。
-        </p>
-      </div>
-    );
+    return <EmptyStateSamples onPick={onPickSample} />;
   }
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
       {messages.map((m) => (
-        <MessageBlock key={m.id} message={m} assetMap={assetMap} />
+        <MessageBlock
+          key={m.id}
+          message={m}
+          assetMap={assetMap}
+          pendingGenerate={pendingGenerate}
+          onOpenLightbox={onOpenLightbox}
+          onCardReroll={onCardReroll}
+        />
       ))}
       <div ref={endRef} />
     </div>
@@ -51,20 +59,30 @@ export function ChatCanvas({ messages, assetMap, loading }: Props) {
 function MessageBlock({
   message,
   assetMap,
+  pendingGenerate,
+  onOpenLightbox,
+  onCardReroll,
 }: {
   message: ChatMessage;
   assetMap: Map<string, AssetSummary>;
+  pendingGenerate: boolean;
+  onOpenLightbox: (asset: AssetSummary, msg: ChatMessage) => void;
+  onCardReroll: (msg: ChatMessage) => void;
 }) {
   if (message.role === 'user') {
-    const refs = (message.refAssetIds ?? [])
-      .map((id) => assetMap.get(id))
-      .filter((a): a is AssetSummary => !!a);
+    const refs = (message.refs ?? []).map((r) => {
+      const asset = assetMap.get(r.asset_id);
+      return asset ? { role: r.role, asset } : null;
+    }).filter((x): x is { role: RefRole; asset: AssetSummary } => !!x);
     return (
       <div className="flex flex-col items-end">
         {refs.length > 0 && (
           <div className="flex gap-2 mb-2">
-            {refs.map((a) => (
-              <Thumb key={a.id} asset={a} size="sm" />
+            {refs.map((r) => (
+              <div key={r.asset.id} className={`h-12 w-12 ring-2 rounded ${ROLE_RING[r.role]}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={r.asset.publicUrl} alt="" className="w-full h-full object-cover rounded" />
+              </div>
             ))}
           </div>
         )}
@@ -113,43 +131,53 @@ function MessageBlock({
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {outputs.map((a) => (
-          <Thumb key={a.id} asset={a} size="lg" />
+          <OutputThumb
+            key={a.id}
+            asset={a}
+            pendingGenerate={pendingGenerate}
+            onOpen={() => onOpenLightbox(a, message)}
+            onReroll={() => onCardReroll(message)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function Thumb({
+function OutputThumb({
   asset,
-  size,
+  pendingGenerate,
+  onOpen,
+  onReroll,
 }: {
   asset: AssetSummary;
-  size: 'sm' | 'lg';
+  pendingGenerate: boolean;
+  onOpen: () => void;
+  onReroll: () => void;
 }) {
-  const box =
-    size === 'sm'
-      ? 'h-16 w-16'
-      : 'aspect-square w-full';
   return (
-    <div className={`relative group ${box}`}>
+    <div className="relative group aspect-square w-full">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={asset.publicUrl}
         alt=""
-        className="w-full h-full object-cover rounded-md border border-gray-200 bg-white"
+        className="w-full h-full object-cover rounded-md border border-gray-200 bg-white cursor-zoom-in"
+        onClick={onOpen}
       />
-      {size === 'lg' && (
-        <a
-          href={asset.publicUrl}
-          download
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition rounded-full bg-white/90 p-1.5 shadow"
-          title="下载"
-          onClick={(e) => e.stopPropagation()}
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+        <button
+          type="button"
+          disabled={pendingGenerate}
+          onClick={(e) => { e.stopPropagation(); onReroll(); }}
+          className="rounded-full bg-white/90 p-1.5 shadow disabled:opacity-50 disabled:cursor-not-allowed"
+          title={pendingGenerate ? '上次生成还在进行中' : 'Reroll'}
         >
+          <RotateCw className="h-3.5 w-3.5 text-gray-700" />
+        </button>
+        <a href={asset.publicUrl} download className="rounded-full bg-white/90 p-1.5 shadow" title="下载" onClick={(e) => e.stopPropagation()}>
           <Download className="h-3.5 w-3.5 text-gray-700" />
         </a>
-      )}
+      </div>
     </div>
   );
 }
