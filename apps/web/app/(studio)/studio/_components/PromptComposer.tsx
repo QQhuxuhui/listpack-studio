@@ -52,6 +52,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const [pendingUploadRole, setPendingUploadRole] = useState<RefRole | null>(null);
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
 
   const model = models.find((m) => m.id === modelId) ?? models[0]!;
 
@@ -215,26 +216,45 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
       <RefSlots refs={refs} model={model} onRemove={(id) => setRefs((cur) => cur.filter((r) => r.asset_id !== id))} />
 
       {/* 主输入行 */}
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 relative">
         <button
           type="button"
           title="附加参考图"
           disabled={!model.capabilities.imageInput || submitting || pendingGenerate}
-          onClick={() => {
-            // 弹个最简 role picker：用 prompt() 临时实现，Phase 1 内可换 native menu
-            const choice = window.prompt('参考图角色: c=内容 / s=风格 / r=主体一致', 'c');
-            const role: RefRole | null = choice === 'c' ? 'content' : choice === 's' ? 'style' : choice === 'r' ? 'character' : null;
-            if (!role) return;
-            if (role === 'character' && !model.capabilities.multiTurn) {
-              alert('当前模型不支持 character 角色，请切换到 Gemini');
-              return;
-            }
-            triggerUpload(role);
-          }}
+          onClick={() => setRolePickerOpen((v) => !v)}
           className="text-gray-500 hover:text-orange-500 disabled:text-gray-300 self-center"
         >
           <Paperclip className="h-5 w-5" />
         </button>
+        {rolePickerOpen && (
+          <div className="absolute bottom-full left-0 mb-2 z-10 bg-white border border-gray-200 rounded-md shadow-lg p-1 flex flex-col text-sm min-w-[140px]">
+            {(
+              [
+                { role: 'content' as const, label: '内容参考', desc: '整体内容启发' },
+                { role: 'style' as const, label: '风格参考', desc: '只学风格' },
+                { role: 'character' as const, label: '主体一致', desc: '锁人物 / 主体', requiresMultiTurn: true },
+              ]
+            ).map((opt) => {
+              const disabled = opt.requiresMultiTurn && !model.capabilities.multiTurn;
+              return (
+                <button
+                  key={opt.role}
+                  type="button"
+                  disabled={disabled}
+                  className="flex flex-col items-start gap-0.5 px-3 py-2 rounded hover:bg-orange-50 disabled:opacity-40 disabled:cursor-not-allowed text-left"
+                  title={disabled ? '当前模型不支持，请切换到 Gemini' : ''}
+                  onClick={() => {
+                    setRolePickerOpen(false);
+                    triggerUpload(opt.role);
+                  }}
+                >
+                  <span className="font-medium text-gray-800">{opt.label}</span>
+                  <span className="text-[10px] text-gray-500">{opt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleUpload} />
         <textarea
           ref={textRef}
