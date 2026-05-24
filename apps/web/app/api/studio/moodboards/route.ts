@@ -4,6 +4,10 @@
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { inArray } from 'drizzle-orm';
+import { db } from '@/lib/db/drizzle';
+import { assets } from '@/lib/db/schema';
+import { getStorage } from '@/lib/storage';
 import { getUser, getWorkspaceForUser } from '@/lib/db/queries';
 import {
   createMoodboard,
@@ -38,7 +42,25 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
-  const items = await listMoodboardsForUser(user.id);
+  const rows = await listMoodboardsForUser(user.id);
+
+  // Resolve cover_asset_id → coverUrl in one batched query (drawer needs thumbnails)
+  const coverIds = rows.map((r) => r.coverAssetId).filter((id): id is string => !!id);
+  const coverAssets = coverIds.length
+    ? await db.select().from(assets).where(inArray(assets.id, coverIds))
+    : [];
+  const storage = getStorage();
+  const coverUrlById = new Map(
+    coverAssets.map((a) => [a.id, a.cdnUrl ?? storage.publicUrl(a.storageKey)] as const),
+  );
+
+  const items = rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    model: r.model,
+    coverUrl: r.coverAssetId ? coverUrlById.get(r.coverAssetId) ?? null : null,
+    updatedAt: r.updatedAt.toISOString(),
+  }));
   return NextResponse.json({ items });
 }
 
