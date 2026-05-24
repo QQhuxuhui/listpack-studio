@@ -181,6 +181,76 @@ export async function failAssistantMessage(
     .where(eq(imageMessages.id, id));
 }
 
+/**
+ * Look up a single message by id, scoped to a chat. Used by the generate route
+ * to validate that `parentMessageId` actually belongs to the chat the user is
+ * posting to — defends against cross-chat lineage spoofing.
+ */
+export async function getMessageByIdForChat(
+  messageId: string,
+  chatId: string,
+): Promise<{ id: string } | null> {
+  const [row] = await db
+    .select({ id: imageMessages.id })
+    .from(imageMessages)
+    .where(
+      and(eq(imageMessages.id, messageId), eq(imageMessages.chatId, chatId)),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Pull the most-recent N completed messages for a chat, returned in time-
+ * ascending order so they can be replayed straight into an upstream
+ * `messages[]` array. Used by the conversational (multiTurn) path.
+ */
+export async function getRecentChatMessagesForContext(
+  chatId: string,
+  limit: number,
+): Promise<Array<{ role: 'user' | 'assistant'; text: string | null }>> {
+  const rows = await db
+    .select({
+      role: imageMessages.role,
+      text: imageMessages.text,
+      createdAt: imageMessages.createdAt,
+    })
+    .from(imageMessages)
+    .where(
+      and(
+        eq(imageMessages.chatId, chatId),
+        eq(imageMessages.status, 'completed'),
+      ),
+    )
+    .orderBy(desc(imageMessages.createdAt))
+    .limit(limit);
+  // Flip back to time-ascending for upstream replay.
+  return rows.reverse().map((r) => ({ role: r.role, text: r.text }));
+}
+
+/**
+ * Find the latest completed assistant message in a chat and return the first
+ * id from its outputAssetIds — i.e. the "previous output image" for the
+ * conversational auto-chain path on models without multiTurn support.
+ */
+export async function getFirstOutputAssetOfLatestCompletedAssistant(
+  chatId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ ids: imageMessages.outputAssetIds })
+    .from(imageMessages)
+    .where(
+      and(
+        eq(imageMessages.chatId, chatId),
+        eq(imageMessages.role, 'assistant'),
+        eq(imageMessages.status, 'completed'),
+      ),
+    )
+    .orderBy(desc(imageMessages.createdAt))
+    .limit(1);
+  return row?.ids?.[0] ?? null;
+}
+
 // ─── ASSETS LOOKUP ───────────────────────────────────────────────────
 
 export async function getAssetsByIdsForWorkspace(

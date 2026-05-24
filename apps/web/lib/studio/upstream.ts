@@ -69,6 +69,17 @@ export interface GenerateInput {
   quality?: 'low' | 'medium' | 'high' | 'auto';
   background?: 'transparent' | 'opaque' | 'auto';
   inputImages?: UpstreamInputImage[];
+  /**
+   * Optional conversation history (time-ascending). Only used by chat-endpoint
+   * models with `multiTurn` capability; ignored by the images endpoint.
+   * Phase 1 forwards text turns only — assistant output images are not yet
+   * round-tripped to the gateway.
+   */
+  historyMessages?: Array<{
+    role: 'user' | 'assistant';
+    text?: string;
+    imageDataUrls?: string[];
+  }>;
 }
 
 export interface UpstreamImage {
@@ -265,12 +276,27 @@ async function generateViaChat(
     content = parts;
   }
 
+  // Build prior-turn history (time-ascending). Each historical message becomes
+  // one chat-completions message; text-only or image-only — text wins when both
+  // are present (Phase 1: assistant images aren't round-tripped to the gateway
+  // because sparkcode's behavior on inline-image continuations isn't pinned down
+  // yet).
+  const baseMessages = (input.historyMessages ?? []).map((m) => ({
+    role: m.role,
+    content: m.text
+      ? [{ type: 'text' as const, text: m.text }]
+      : (m.imageDataUrls ?? []).map((u) => ({
+          type: 'image_url' as const,
+          image_url: { url: u },
+        })),
+  }));
+
   // The gateway returns 1 image per call; loop to honour n.
   const out: UpstreamImage[] = [];
   for (let i = 0; i < input.n; i++) {
     const body: Record<string, unknown> = {
       model: model.id,
-      messages: [{ role: 'user', content }],
+      messages: [...baseMessages, { role: 'user', content }],
       modalities: ['image', 'text'],
       stream: false,
     };

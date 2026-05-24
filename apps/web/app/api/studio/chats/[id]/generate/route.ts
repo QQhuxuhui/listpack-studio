@@ -28,12 +28,16 @@ import {
   failAssistantMessage,
   getAssetsByIdsForWorkspace,
   getChatForWorkspace,
+  getFirstOutputAssetOfLatestCompletedAssistant,
+  getMessageByIdForChat,
+  getRecentChatMessagesForContext,
   recordUsage,
   recordUserMessage,
   refundQuota,
   reserveQuota,
   touchChat,
 } from '@/lib/db/studio-queries';
+import { getMoodboardById, setCoverIfMissing } from '@/lib/db/moodboard-queries';
 import { insertAsset } from '@/lib/db/asset-queries';
 import { getStorage } from '@/lib/storage';
 import { getModel, type ModelCapabilities } from '@/lib/studio/models';
@@ -157,24 +161,94 @@ export async function POST(
     );
   }
 
+  // parentMessageId 必须属于本 chat — 防止跨 chat 伪造 lineage。
+  if (input.parentMessageId) {
+    const parent = await getMessageByIdForChat(input.parentMessageId, chat.id);
+    if (!parent) {
+      return NextResponse.json(
+        {
+          error: 'parent_message_not_in_chat',
+          parentMessageId: input.parentMessageId,
+        },
+        { status: 400 },
+      );
+    }
+  }
+
+  // ── Conversational mode (spec §4.1) ──
+  // Path I: multiTurn model → pull history into upstream messages[].
+  // Path II: non-multiTurn but imageInput model → auto-append previous output
+  //          as a content ref and warn.
+  // Path III: neither → 400 capability_unsupported.
+  const warnings: string[] = [];
+  let historyMessages:
+    | Array<{ role: 'user' | 'assistant'; text?: string; imageDataUrls?: string[] }>
+    | undefined;
+  // Local copy of refs we may augment for the upstream path.
+  let effectiveRefs = input.refs ?? [];
+
+  if (input.conversational === true) {
+    if (model.capabilities.multiTurn) {
+      const history = await getRecentChatMessagesForContext(chat.id, 8);
+      historyMessages = history.map((m) => ({
+        role: m.role,
+        text: m.text ?? undefined,
+      }));
+    } else if (model.capabilities.imageInput) {
+      const sourceAssetId =
+        await getFirstOutputAssetOfLatestCompletedAssistant(chat.id);
+      if (sourceAssetId) {
+        // Only augment when the user didn't already include this exact asset
+        // — keeps multi-turn reroll deterministic.
+        const alreadyPresent = effectiveRefs.some(
+          (r) => r.asset_id === sourceAssetId,
+        );
+        if (!alreadyPresent) {
+          effectiveRefs = [
+            ...effectiveRefs,
+            { asset_id: sourceAssetId, role: 'content' as const },
+          ];
+          warnings.push('autoAppendedRefFromHistory');
+        }
+      }
+    } else {
+      return NextResponse.json(
+        {
+          error: 'capability_unsupported',
+          cap: 'conversational',
+          model: input.model,
+          field: 'conversational',
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   // Resolve ref assets (must belong to this workspace). Soft-tolerant: missing
   // assets are skipped so a stale FE reference doesn't take down a whole gen.
   let refInputs: UpstreamInputImage[] = [];
-  if (input.refs?.length) {
-    const ids = input.refs.map((r) => r.asset_id);
+  let skippedRefsCount = 0;
+  if (effectiveRefs.length) {
+    const ids = effectiveRefs.map((r) => r.asset_id);
     const refRows = await getAssetsByIdsForWorkspace(ids, ws.id);
     const byId = new Map(refRows.map((a) => [a.id, a]));
     const storage = getStorage();
     refInputs = (
       await Promise.all(
-        input.refs.map(async (r) => {
+        effectiveRefs.map(async (r) => {
           const a = byId.get(r.asset_id);
-          if (!a) return null;
+          if (!a) {
+            skippedRefsCount++;
+            return null;
+          }
           const { bytes, mime } = await storage.get(a.storageKey);
           return { bytes, mime, role: r.role } satisfies UpstreamInputImage;
         }),
       )
     ).filter((x): x is UpstreamInputImage => x !== null);
+  }
+  if (skippedRefsCount > 0) {
+    warnings.push(`skippedRefs:${skippedRefsCount}`);
   }
 
   // Reserve quota up front. Roll back on upstream failure.
@@ -222,6 +296,9 @@ export async function POST(
       quality: input.quality,
       background: input.background,
       inputImages: refInputs,
+      ...(historyMessages && historyMessages.length > 0
+        ? { historyMessages }
+        : {}),
     });
   } catch (err) {
     await refundQuota(ws.id, n);
@@ -274,6 +351,20 @@ export async function POST(
     model: model.id,
   });
 
+  // Moodboard cover hint — first-wins. We verify ownership here (silently
+  // ignore foreign moodboards so callers can't probe for ID existence),
+  // then fire-and-forget setCoverIfMissing. The WHERE cover_asset_id IS NULL
+  // inside setCoverIfMissing handles the concurrency race.
+  if (input.moodboardId && outputAssets.length > 0) {
+    const firstAsset = outputAssets[0]!;
+    const mb = await getMoodboardById(input.moodboardId, user.id);
+    if (mb) {
+      void setCoverIfMissing(input.moodboardId, firstAsset.id).catch((e) => {
+        console.warn('[generate] moodboard cover write failed:', e);
+      });
+    }
+  }
+
   return NextResponse.json({
     userMessage: userMsg,
     assistantMessage: {
@@ -283,5 +374,6 @@ export async function POST(
     },
     outputs: outputAssets,
     remainingQuota: reservation.ok ? reservation.remaining : 0,
+    ...(warnings.length > 0 ? { warnings } : {}),
   });
 }
