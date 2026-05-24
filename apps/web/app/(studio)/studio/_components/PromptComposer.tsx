@@ -92,6 +92,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
     e.target.value = '';
     if (!file || !pendingUploadRole) return;
     if (refs.length >= 8) { setError('最多附加 8 张参考图'); return; }
+    setError(null);
     const fd = new FormData();
     fd.append('file', file);
     fd.append('type', 'user_upload');
@@ -122,6 +123,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
         ...(parentMessageId ? { parentMessageId } : {}),
         ...(settings.seed !== null && model.capabilities.seed ? { seed: settings.seed } : {}),
         ...(settings.transparentBackground && model.capabilities.transparentBackground ? { transparentBackground: true } : {}),
+        ...(settings.quality !== 'auto' && model.endpoint === 'images' ? { quality: settings.quality } : {}),
       };
       const res = await fetch(`/api/studio/chats/${chatId}/generate`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
