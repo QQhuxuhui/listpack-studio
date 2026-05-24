@@ -22,12 +22,40 @@
 import 'server-only';
 import { Buffer } from 'node:buffer';
 import { getModel, type StudioModel } from './models';
+import type { RefRole } from './refs-type';
 
 const DEFAULT_BASE = 'https://api.sparkcode.top/v1';
+
+/**
+ * 把 prompt 与 refs 按 role 分组拼成 effective prompt。
+ * 设计目标：让单一上游（不论 OpenAI-compat 还是 Gemini chat）
+ * 都能从纯文本里捕捉到 "哪张图是内容、哪张图是风格" 的语义，
+ * 不依赖 API 提供 role 槽位。
+ */
+export function buildEffectivePrompt(input: {
+  prompt: string;
+  refs: Array<{ role: RefRole }>;
+}): string {
+  if (input.refs.length === 0) return input.prompt;
+  const byRole: Record<RefRole, number> = { content: 0, style: 0, character: 0 };
+  for (const r of input.refs) byRole[r.role]++;
+  const segments: string[] = [];
+  if (byRole.content > 0) {
+    segments.push(`[content reference]${byRole.content > 1 ? ` (${byRole.content} images)` : ''}`);
+  }
+  if (byRole.style > 0) {
+    segments.push(`[style reference]${byRole.style > 1 ? ` (${byRole.style} images)` : ''}`);
+  }
+  if (byRole.character > 0) {
+    segments.push(`[keep character consistent]${byRole.character > 1 ? ` (${byRole.character} images)` : ''}`);
+  }
+  return `${segments.join(' ')} ${input.prompt}`;
+}
 
 export interface UpstreamInputImage {
   mime: string;
   bytes: Buffer;
+  role: RefRole;
 }
 
 export interface GenerateInput {
@@ -41,6 +69,17 @@ export interface GenerateInput {
   quality?: 'low' | 'medium' | 'high' | 'auto';
   background?: 'transparent' | 'opaque' | 'auto';
   inputImages?: UpstreamInputImage[];
+  /**
+   * Optional conversation history (time-ascending). Only used by chat-endpoint
+   * models with `multiTurn` capability; ignored by the images endpoint.
+   * Phase 1 forwards text turns only — assistant output images are not yet
+   * round-tripped to the gateway.
+   */
+  historyMessages?: Array<{
+    role: 'user' | 'assistant';
+    text?: string;
+    imageDataUrls?: string[];
+  }>;
 }
 
 export interface UpstreamImage {
@@ -90,7 +129,9 @@ function decodeB64Json(b64: string): UpstreamImage {
 }
 
 function decodeDataUrl(url: string): UpstreamImage | null {
-  const m = url.match(/^data:([^;]+);base64,(.+)$/);
+  // Accept the raw data URL OR a markdown image wrapper `![...](data:...)`
+  // — sparkcode.top returns the Gemini image as markdown.
+  const m = url.match(/data:([^;]+);base64,([A-Za-z0-9+/=]+)/);
   if (!m) return null;
   return { mime: m[1]!, bytes: Buffer.from(m[2]!, 'base64') };
 }
@@ -100,7 +141,7 @@ export async function generate(input: GenerateInput): Promise<UpstreamImage[]> {
   const model = getModel(input.model);
   if (!model) throw new Error(`Unknown model: ${input.model}`);
 
-  if (!model.supportsImg2Img && (input.inputImages?.length ?? 0) > 0) {
+  if (!model.capabilities.imageInput && (input.inputImages?.length ?? 0) > 0) {
     throw new Error(`Model ${model.id} does not support image inputs`);
   }
 
@@ -119,6 +160,11 @@ async function generateViaImages(
   const key = keyForGroup(model.group);
   const size = input.size ?? model.defaultSize ?? '1024x1024';
 
+  const effectivePrompt = buildEffectivePrompt({
+    prompt: input.prompt,
+    refs: input.inputImages ?? [],
+  });
+
   const hasInputs = (input.inputImages?.length ?? 0) > 0;
   const url = hasInputs
     ? `${baseUrl()}/images/edits`
@@ -128,7 +174,7 @@ async function generateViaImages(
   if (hasInputs) {
     const fd = new FormData();
     fd.append('model', model.id);
-    fd.append('prompt', input.prompt);
+    fd.append('prompt', effectivePrompt);
     fd.append('n', String(input.n));
     fd.append('size', size);
     fd.append('response_format', 'b64_json');
@@ -152,7 +198,7 @@ async function generateViaImages(
       },
       body: JSON.stringify({
         model: model.id,
-        prompt: input.prompt,
+        prompt: effectivePrompt,
         n: input.n,
         size,
         quality: input.quality ?? 'high',
@@ -204,15 +250,20 @@ async function generateViaChat(
 ): Promise<UpstreamImage[]> {
   const key = keyForGroup(model.group);
 
+  const effectivePrompt = buildEffectivePrompt({
+    prompt: input.prompt,
+    refs: input.inputImages ?? [],
+  });
+
   // Build the user message content. Plain text if no inputs; multipart
   // (text + image_url[]) otherwise.
   const inputs = input.inputImages ?? [];
   let content: unknown;
   if (inputs.length === 0) {
-    content = input.prompt;
+    content = effectivePrompt;
   } else {
     const parts: Array<Record<string, unknown>> = [
-      { type: 'text', text: input.prompt },
+      { type: 'text', text: effectivePrompt },
     ];
     for (const img of inputs) {
       parts.push({
@@ -225,12 +276,30 @@ async function generateViaChat(
     content = parts;
   }
 
+  // Build prior-turn history (time-ascending). Each historical message becomes
+  // one chat-completions message; text-only or image-only — text wins when both
+  // are present (Phase 1: assistant images aren't round-tripped to the gateway
+  // because sparkcode's behavior on inline-image continuations isn't pinned down
+  // yet). Filter out empty messages first — an entry with neither text nor
+  // image_url would produce `content: []`, which sparkcode rejects.
+  const baseMessages = (input.historyMessages ?? [])
+    .filter((m) => m.text || (m.imageDataUrls && m.imageDataUrls.length > 0))
+    .map((m) => ({
+      role: m.role,
+      content: m.text
+        ? [{ type: 'text' as const, text: m.text }]
+        : (m.imageDataUrls ?? []).map((u) => ({
+            type: 'image_url' as const,
+            image_url: { url: u },
+          })),
+    }));
+
   // The gateway returns 1 image per call; loop to honour n.
   const out: UpstreamImage[] = [];
   for (let i = 0; i < input.n; i++) {
     const body: Record<string, unknown> = {
       model: model.id,
-      messages: [{ role: 'user', content }],
+      messages: [...baseMessages, { role: 'user', content }],
       modalities: ['image', 'text'],
       stream: false,
     };

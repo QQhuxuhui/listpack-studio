@@ -32,7 +32,7 @@ export async function GET(
   // them in a single query so the client can render <img src> directly.
   const ids = new Set<string>();
   for (const m of messages) {
-    for (const x of m.refAssetIds ?? []) ids.add(x);
+    for (const r of m.refs ?? []) ids.add(r.asset_id);
     for (const x of m.outputAssetIds ?? []) ids.add(x);
   }
   const assetRows = await getAssetsByIdsForWorkspace(Array.from(ids), ws.id);

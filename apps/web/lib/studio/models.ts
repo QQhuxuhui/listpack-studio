@@ -15,6 +15,21 @@
 export type ModelGroup = 'codex' | 'banana';
 export type ModelEndpoint = 'images' | 'chat';
 
+export interface ModelCapabilities {
+  /** Accepts reference images alongside the prompt. */
+  imageInput: boolean;
+  /** Supports inpainting (edit a masked region). */
+  inpaint: boolean;
+  /** Supports outpainting (extend the canvas beyond original bounds). */
+  outpaint: boolean;
+  /** Honors a deterministic seed parameter. */
+  seed: boolean;
+  /** Can produce images with a transparent background. */
+  transparentBackground: boolean;
+  /** Supports multi-turn conversational refinement of generated images. */
+  multiTurn: boolean;
+}
+
 export interface StudioModel {
   /** Exact upstream model string. Passed through to the gateway. */
   id: string;
@@ -24,14 +39,14 @@ export interface StudioModel {
   group: ModelGroup;
   /** Endpoint shape — affects request/response parsing. */
   endpoint: ModelEndpoint;
-  supportsImg2Img: boolean;
-  supportsMask: boolean;
   /** Default size string (e.g. '1024x1024'). 'images' endpoint only. */
   defaultSize?: string;
   /** Default aspect ratio (e.g. '1:1'). 'chat' endpoint only. */
   defaultAspectRatio?: string;
   /** Max images per single user prompt. */
   maxN: number;
+  /** Per-feature capability flags consulted by UI gating + upstream adapter. */
+  capabilities: ModelCapabilities;
 }
 
 export const MODELS: Record<string, StudioModel> = {
@@ -40,30 +55,48 @@ export const MODELS: Record<string, StudioModel> = {
     label: 'GPT Image 2',
     group: 'codex',
     endpoint: 'images',
-    supportsImg2Img: true,
-    supportsMask: true,
     defaultSize: '1024x1024',
     maxN: 4,
+    capabilities: {
+      imageInput: true,
+      inpaint: true,
+      outpaint: true,
+      seed: true,
+      transparentBackground: true,
+      multiTurn: false,
+    },
   },
   'gemini-3.1-flash-image-preview': {
     id: 'gemini-3.1-flash-image-preview',
     label: 'Gemini 3.1 Flash Image',
     group: 'banana',
     endpoint: 'chat',
-    supportsImg2Img: true,
-    supportsMask: false,
     defaultAspectRatio: '1:1',
     maxN: 4,
+    capabilities: {
+      imageInput: true,
+      inpaint: false,
+      outpaint: false,
+      seed: false,
+      transparentBackground: false,
+      multiTurn: true,
+    },
   },
   'gemini-3-pro-image-preview': {
     id: 'gemini-3-pro-image-preview',
     label: 'Gemini 3 Pro Image',
     group: 'banana',
     endpoint: 'chat',
-    supportsImg2Img: true,
-    supportsMask: false,
     defaultAspectRatio: '1:1',
     maxN: 2,
+    capabilities: {
+      imageInput: true,
+      inpaint: false,
+      outpaint: false,
+      seed: false,
+      transparentBackground: false,
+      multiTurn: true,
+    },
   },
 };
 
@@ -75,4 +108,18 @@ export function getModel(id: string): StudioModel | null {
 
 export function listModels(): StudioModel[] {
   return Object.values(MODELS);
+}
+
+export function modelSupports(modelId: string, cap: keyof ModelCapabilities): boolean {
+  const m = MODELS[modelId];
+  return m ? m.capabilities[cap] : false;
+}
+
+/**
+ * 返回 MODELS 字典里第一个支持给定 cap 的模型（按 MODELS 字面量声明顺序）。
+ * 用于 UI tooltip 的"请切换到 X"提示——MODELS 字典声明顺序即"推荐优先级"。
+ * 若要改"推荐"语义（如按 maxN 排），改 MODELS 声明顺序而非此函数。
+ */
+export function firstModelSupporting(cap: keyof ModelCapabilities): StudioModel | null {
+  return listModels().find((m) => m.capabilities[cap]) ?? null;
 }

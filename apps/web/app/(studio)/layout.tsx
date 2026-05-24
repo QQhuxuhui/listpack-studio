@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { PostHogProvider } from '@/components/posthog-provider';
 import { signOut } from '@/app/(login)/actions';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import type { User, Subscription } from '@/lib/db/schema';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -33,6 +33,8 @@ function QuotaBadge() {
   if (!sub) return null;
   const remaining = Math.max(0, sub.skuQuota - sub.skuUsed);
   const pct = sub.skuQuota > 0 ? remaining / sub.skuQuota : 0;
+  // 软提示：剩余 > 20% 时不显示，避免日常打扰
+  if (pct > 0.2) return null;
   let color = 'text-gray-700';
   if (pct < 0.1) color = 'text-red-600';
   else if (pct < 0.3) color = 'text-amber-600';
@@ -109,17 +111,35 @@ export default function StudioLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname() ?? '/';
+  const navItem = (href: string, label: string, isActive: boolean) => (
+    <Link
+      href={href}
+      className={`text-sm pb-1 ${
+        isActive
+          ? 'text-orange-600 border-b-2 border-orange-500 font-medium'
+          : 'text-gray-600 hover:text-gray-900'
+      }`}
+    >
+      {label}
+    </Link>
+  );
+
   return (
     <PostHogProvider>
       <div className="flex flex-col h-[100dvh] bg-gray-50">
         <header className="border-b border-gray-200 bg-white">
           <div className="px-4 sm:px-6 py-3 flex justify-between items-center">
-            <Link href="/studio" className="flex items-center">
-              <Sparkles className="h-6 w-6 text-orange-500" />
-              <span className="ml-2 text-lg font-semibold text-gray-900">
-                ListPack Studio
-              </span>
-            </Link>
+            <div className="flex items-center gap-6">
+              <Link href="/studio" className="flex items-center">
+                <Sparkles className="h-6 w-6 text-orange-500" />
+                <span className="ml-2 text-lg font-semibold text-gray-900">
+                  ListPack Studio
+                </span>
+              </Link>
+              {navItem('/studio', 'Studio', pathname === '/studio')}
+              {navItem('/library', '图库', pathname.startsWith('/library'))}
+            </div>
             <div className="flex items-center gap-4">
               <Suspense fallback={null}>
                 <QuotaBadge />
