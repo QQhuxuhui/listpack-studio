@@ -62,3 +62,5 @@ coverage/
 .langgraph_api/
 checkpoints.db
 checkpoints.sqlite*
+
+.superpowers/

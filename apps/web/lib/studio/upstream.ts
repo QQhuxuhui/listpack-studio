@@ -90,7 +90,9 @@ function decodeB64Json(b64: string): UpstreamImage {
 }
 
 function decodeDataUrl(url: string): UpstreamImage | null {
-  const m = url.match(/^data:([^;]+);base64,(.+)$/);
+  // Accept the raw data URL OR a markdown image wrapper `![...](data:...)`
+  // — sparkcode.top returns the Gemini image as markdown.
+  const m = url.match(/data:([^;]+);base64,([A-Za-z0-9+/=]+)/);
   if (!m) return null;
   return { mime: m[1]!, bytes: Buffer.from(m[2]!, 'base64') };
 }
