@@ -4,13 +4,13 @@
  * exercises the helpers, and cleans up at the end. Email/slug are time-
  * stamped so reruns don't collide on the unique indexes.
  */
-import './_setup'; // must be first — patches `server-only` resolution
+import '@/lib/test-utils/server-only-setup'; // must be first — patches `server-only` resolution
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Lazily-loaded modules — see before() block. Static imports of
 // server-only modules are intentionally absent so the resolver patch
-// from ./_setup runs before they load.
+// from the shared setup runs before they load.
 type Db = typeof import('../../drizzle')['db'];
 type Client = typeof import('../../drizzle')['client'];
 type Schema = typeof import('../../schema');

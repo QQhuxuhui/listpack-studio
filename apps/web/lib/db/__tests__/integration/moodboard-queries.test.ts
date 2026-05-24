@@ -4,12 +4,12 @@
  * exercises the helpers, and cleans up at the end. Email/slug are time-
  * stamped so reruns don't collide on the unique indexes.
  */
-import './_setup'; // must be first — patches `server-only` resolution
+import '@/lib/test-utils/server-only-setup'; // must be first — patches `server-only` resolution
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
-// Dynamic imports AFTER _setup runs
+// Dynamic imports AFTER the shared setup runs
 let db: typeof import('../../drizzle').db;
 let schema: typeof import('../../schema');
 let mb: typeof import('../../moodboard-queries');

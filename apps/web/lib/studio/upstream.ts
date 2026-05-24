@@ -22,7 +22,7 @@
 import 'server-only';
 import { Buffer } from 'node:buffer';
 import { getModel, type StudioModel } from './models';
-import type { RefEntry, RefRole } from './refs-type';
+import type { RefRole } from './refs-type';
 
 const DEFAULT_BASE = 'https://api.sparkcode.top/v1';
 
@@ -34,7 +34,7 @@ const DEFAULT_BASE = 'https://api.sparkcode.top/v1';
  */
 export function buildEffectivePrompt(input: {
   prompt: string;
-  refs: RefEntry[];
+  refs: Array<{ role: RefRole }>;
 }): string {
   if (input.refs.length === 0) return input.prompt;
   const byRole: Record<RefRole, number> = { content: 0, style: 0, character: 0 };
@@ -149,13 +149,9 @@ async function generateViaImages(
   const key = keyForGroup(model.group);
   const size = input.size ?? model.defaultSize ?? '1024x1024';
 
-  const refsForPrompt = (input.inputImages ?? []).map((img, i) => ({
-    asset_id: `ref-${i}`,
-    role: img.role,
-  }));
   const effectivePrompt = buildEffectivePrompt({
     prompt: input.prompt,
-    refs: refsForPrompt,
+    refs: input.inputImages ?? [],
   });
 
   const hasInputs = (input.inputImages?.length ?? 0) > 0;
@@ -243,13 +239,9 @@ async function generateViaChat(
 ): Promise<UpstreamImage[]> {
   const key = keyForGroup(model.group);
 
-  const refsForPrompt = (input.inputImages ?? []).map((img, i) => ({
-    asset_id: `ref-${i}`,
-    role: img.role,
-  }));
   const effectivePrompt = buildEffectivePrompt({
     prompt: input.prompt,
-    refs: refsForPrompt,
+    refs: input.inputImages ?? [],
   });
 
   // Build the user message content. Plain text if no inputs; multipart

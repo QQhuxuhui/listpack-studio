@@ -1,26 +1,12 @@
 /**
  * Unit tests for upstream.ts helpers. upstream.ts imports `server-only`,
- * which Node refuses to load outside Next's bundler — so we patch the
- * specifier to a CJS stub before any dynamic import.
+ * which Node refuses to load outside Next's bundler — the shared
+ * setup module patches the specifier to a CJS stub before any dynamic
+ * import. Keep that import FIRST.
  */
+import '@/lib/test-utils/server-only-setup';
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-
-const _require = createRequire(import.meta.url);
-type ModuleStatic = typeof import('module') & {
-  _resolveFilename: (req: string, ...rest: unknown[]) => string;
-};
-const _Module = _require('module') as ModuleStatic;
-const _stubPath = _require.resolve('./_server-only-stub.cjs');
-const _origResolve = _Module._resolveFilename.bind(_Module);
-_Module._resolveFilename = function patched(
-  req: string,
-  ...rest: unknown[]
-): string {
-  if (req === 'server-only') return _stubPath;
-  return _origResolve(req, ...rest);
-};
 
 // Lazily-loaded — must wait for the resolver patch above.
 type UpstreamModule = typeof import('../upstream');
@@ -38,7 +24,7 @@ test('无 refs 时 effectivePrompt 等于原 prompt', () => {
 test('1 张 content ref 加 [content reference] 前缀', () => {
   const p = buildEffectivePrompt({
     prompt: 'wearing a hat',
-    refs: [{ asset_id: 'a', role: 'content' }],
+    refs: [{ role: 'content' }],
   });
   assert.match(p, /\[content reference\]/);
   assert.match(p, /wearing a hat$/);
@@ -47,10 +33,7 @@ test('1 张 content ref 加 [content reference] 前缀', () => {
 test('content + style 分别前缀', () => {
   const p = buildEffectivePrompt({
     prompt: 'wearing a hat',
-    refs: [
-      { asset_id: 'a', role: 'content' },
-      { asset_id: 'b', role: 'style' },
-    ],
+    refs: [{ role: 'content' }, { role: 'style' }],
   });
   assert.match(p, /\[content reference\]/);
   assert.match(p, /\[style reference\]/);
@@ -59,7 +42,7 @@ test('content + style 分别前缀', () => {
 test('character role 加 [keep character consistent] 前缀', () => {
   const p = buildEffectivePrompt({
     prompt: 'in a forest',
-    refs: [{ asset_id: 'c', role: 'character' }],
+    refs: [{ role: 'character' }],
   });
   assert.match(p, /\[keep character consistent\]/);
 });
@@ -67,10 +50,7 @@ test('character role 加 [keep character consistent] 前缀', () => {
 test('多张同 role 合并到单个前缀', () => {
   const p = buildEffectivePrompt({
     prompt: 'merged',
-    refs: [
-      { asset_id: 'a', role: 'content' },
-      { asset_id: 'b', role: 'content' },
-    ],
+    refs: [{ role: 'content' }, { role: 'content' }],
   });
   const matches = p.match(/\[content reference\]/g);
   assert.equal(matches?.length, 1);
