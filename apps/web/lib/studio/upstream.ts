@@ -22,12 +22,40 @@
 import 'server-only';
 import { Buffer } from 'node:buffer';
 import { getModel, type StudioModel } from './models';
+import type { RefEntry, RefRole } from './refs-type';
 
 const DEFAULT_BASE = 'https://api.sparkcode.top/v1';
+
+/**
+ * 把 prompt 与 refs 按 role 分组拼成 effective prompt。
+ * 设计目标：让单一上游（不论 OpenAI-compat 还是 Gemini chat）
+ * 都能从纯文本里捕捉到 "哪张图是内容、哪张图是风格" 的语义，
+ * 不依赖 API 提供 role 槽位。
+ */
+export function buildEffectivePrompt(input: {
+  prompt: string;
+  refs: RefEntry[];
+}): string {
+  if (input.refs.length === 0) return input.prompt;
+  const byRole: Record<RefRole, number> = { content: 0, style: 0, character: 0 };
+  for (const r of input.refs) byRole[r.role]++;
+  const segments: string[] = [];
+  if (byRole.content > 0) {
+    segments.push(`[content reference]${byRole.content > 1 ? ` (${byRole.content} images)` : ''}`);
+  }
+  if (byRole.style > 0) {
+    segments.push(`[style reference]${byRole.style > 1 ? ` (${byRole.style} images)` : ''}`);
+  }
+  if (byRole.character > 0) {
+    segments.push(`[keep character consistent]${byRole.character > 1 ? ` (${byRole.character} images)` : ''}`);
+  }
+  return `${segments.join(' ')} ${input.prompt}`;
+}
 
 export interface UpstreamInputImage {
   mime: string;
   bytes: Buffer;
+  role: RefRole;
 }
 
 export interface GenerateInput {
@@ -102,7 +130,7 @@ export async function generate(input: GenerateInput): Promise<UpstreamImage[]> {
   const model = getModel(input.model);
   if (!model) throw new Error(`Unknown model: ${input.model}`);
 
-  if (!model.supportsImg2Img && (input.inputImages?.length ?? 0) > 0) {
+  if (!model.capabilities.imageInput && (input.inputImages?.length ?? 0) > 0) {
     throw new Error(`Model ${model.id} does not support image inputs`);
   }
 
@@ -121,6 +149,15 @@ async function generateViaImages(
   const key = keyForGroup(model.group);
   const size = input.size ?? model.defaultSize ?? '1024x1024';
 
+  const refsForPrompt = (input.inputImages ?? []).map((img, i) => ({
+    asset_id: `ref-${i}`,
+    role: img.role,
+  }));
+  const effectivePrompt = buildEffectivePrompt({
+    prompt: input.prompt,
+    refs: refsForPrompt,
+  });
+
   const hasInputs = (input.inputImages?.length ?? 0) > 0;
   const url = hasInputs
     ? `${baseUrl()}/images/edits`
@@ -130,7 +167,7 @@ async function generateViaImages(
   if (hasInputs) {
     const fd = new FormData();
     fd.append('model', model.id);
-    fd.append('prompt', input.prompt);
+    fd.append('prompt', effectivePrompt);
     fd.append('n', String(input.n));
     fd.append('size', size);
     fd.append('response_format', 'b64_json');
@@ -154,7 +191,7 @@ async function generateViaImages(
       },
       body: JSON.stringify({
         model: model.id,
-        prompt: input.prompt,
+        prompt: effectivePrompt,
         n: input.n,
         size,
         quality: input.quality ?? 'high',
@@ -206,15 +243,24 @@ async function generateViaChat(
 ): Promise<UpstreamImage[]> {
   const key = keyForGroup(model.group);
 
+  const refsForPrompt = (input.inputImages ?? []).map((img, i) => ({
+    asset_id: `ref-${i}`,
+    role: img.role,
+  }));
+  const effectivePrompt = buildEffectivePrompt({
+    prompt: input.prompt,
+    refs: refsForPrompt,
+  });
+
   // Build the user message content. Plain text if no inputs; multipart
   // (text + image_url[]) otherwise.
   const inputs = input.inputImages ?? [];
   let content: unknown;
   if (inputs.length === 0) {
-    content = input.prompt;
+    content = effectivePrompt;
   } else {
     const parts: Array<Record<string, unknown>> = [
-      { type: 'text', text: input.prompt },
+      { type: 'text', text: effectivePrompt },
     ];
     for (const img of inputs) {
       parts.push({
