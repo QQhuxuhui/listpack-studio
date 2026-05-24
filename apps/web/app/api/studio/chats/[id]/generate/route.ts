@@ -36,7 +36,7 @@ import {
 } from '@/lib/db/studio-queries';
 import { insertAsset } from '@/lib/db/asset-queries';
 import { getStorage } from '@/lib/storage';
-import { getModel } from '@/lib/studio/models';
+import { getModel, type ModelCapabilities } from '@/lib/studio/models';
 import {
   generate,
   UpstreamError,
@@ -48,6 +48,17 @@ export const dynamic = 'force-dynamic';
 // Image generation can take 30+ seconds; bump the default 10s budget.
 export const maxDuration = 120;
 
+const refRoleSchema = z.enum(['content', 'style', 'character']);
+const refsSchema = z
+  .array(
+    z.object({
+      asset_id: z.string().uuid(),
+      role: refRoleSchema,
+    }),
+  )
+  .max(8)
+  .optional();
+
 const generateSchema = z.object({
   prompt: z.string().min(1).max(4000),
   model: z.string().min(1).max(100),
@@ -56,7 +67,14 @@ const generateSchema = z.object({
   aspectRatio: z.string().max(10).optional(),
   quality: z.enum(['low', 'medium', 'high', 'auto']).optional(),
   background: z.enum(['transparent', 'opaque', 'auto']).optional(),
-  refAssetIds: z.array(z.string().uuid()).max(4).optional(),
+  refs: refsSchema,
+  // Schema-only in Task 6 — behavior wiring lands in Task 7.
+  conversational: z.boolean().optional(),
+  parentMessageId: z.string().uuid().optional(),
+  seed: z.number().int().optional(),
+  transparentBackground: z.boolean().optional(),
+  // Schema-only in Task 6 — cover write-back lands in Task 7.
+  moodboardId: z.string().uuid().optional(),
 });
 
 function extForMime(mime: string): string {
@@ -91,33 +109,72 @@ export async function POST(
 
   const model = getModel(input.model);
   if (!model) {
-    return NextResponse.json({ error: `unknown model: ${input.model}` }, { status: 400 });
+    return NextResponse.json(
+      { error: 'unknown_model', model: input.model },
+      { status: 400 },
+    );
   }
   const n = Math.min(input.n, model.maxN);
 
-  // Resolve ref assets (must belong to this workspace).
-  let refInputs: UpstreamInputImage[] = [];
-  if (input.refAssetIds?.length) {
-    if (!model.supportsImg2Img) {
+  // Capability gating — fail-fast before quota reserve / DB writes / upstream call.
+  const capChecks: Array<{ field: string; cap: keyof ModelCapabilities; condition: boolean }> = [
+    { field: 'seed', cap: 'seed', condition: input.seed !== undefined },
+    {
+      field: 'transparentBackground',
+      cap: 'transparentBackground',
+      condition: !!input.transparentBackground,
+    },
+    {
+      field: 'character',
+      cap: 'multiTurn',
+      condition: !!input.refs?.some((r) => r.role === 'character'),
+    },
+  ];
+  for (const c of capChecks) {
+    if (c.condition && !model.capabilities[c.cap]) {
       return NextResponse.json(
-        { error: `model ${model.id} does not accept reference images` },
+        {
+          error: 'capability_unsupported',
+          cap: c.cap,
+          model: input.model,
+          field: c.field,
+        },
         { status: 400 },
       );
     }
-    const refRows = await getAssetsByIdsForWorkspace(input.refAssetIds, ws.id);
-    if (refRows.length !== input.refAssetIds.length) {
-      return NextResponse.json(
-        { error: 'some reference assets not found' },
-        { status: 400 },
-      );
-    }
-    const storage = getStorage();
-    refInputs = await Promise.all(
-      refRows.map(async (a) => {
-        const { bytes, mime } = await storage.get(a.storageKey);
-        return { bytes, mime };
-      }),
+  }
+
+  // Any refs at all require imageInput capability.
+  if (input.refs?.length && !model.capabilities.imageInput) {
+    return NextResponse.json(
+      {
+        error: 'capability_unsupported',
+        cap: 'imageInput',
+        model: input.model,
+        field: 'refs',
+      },
+      { status: 400 },
     );
+  }
+
+  // Resolve ref assets (must belong to this workspace). Soft-tolerant: missing
+  // assets are skipped so a stale FE reference doesn't take down a whole gen.
+  let refInputs: UpstreamInputImage[] = [];
+  if (input.refs?.length) {
+    const ids = input.refs.map((r) => r.asset_id);
+    const refRows = await getAssetsByIdsForWorkspace(ids, ws.id);
+    const byId = new Map(refRows.map((a) => [a.id, a]));
+    const storage = getStorage();
+    refInputs = (
+      await Promise.all(
+        input.refs.map(async (r) => {
+          const a = byId.get(r.asset_id);
+          if (!a) return null;
+          const { bytes, mime } = await storage.get(a.storageKey);
+          return { bytes, mime, role: r.role } satisfies UpstreamInputImage;
+        }),
+      )
+    ).filter((x): x is UpstreamInputImage => x !== null);
   }
 
   // Reserve quota up front. Roll back on upstream failure.
@@ -129,17 +186,14 @@ export async function POST(
     );
   }
 
-  // Record user prompt + create pending assistant message.
-  // NOTE: refs default to role='content'; Task 6 will replace this with the
-  // proper per-slot payload from the new request schema.
-  const refs = input.refAssetIds?.map((id) => ({
-    asset_id: id,
-    role: 'content' as const,
-  }));
+  // Record user prompt + create pending assistant message. Per-ref roles flow
+  // straight through to the jsonb column. parentMessageId enables reroll
+  // threading (Task 7 will wire the conversational branch).
   const userMsg = await recordUserMessage({
     chatId: chat.id,
     text: input.prompt,
-    refs,
+    refs: input.refs,
+    parentMessageId: input.parentMessageId,
   });
   const assistantMsg = await createPendingAssistantMessage({
     chatId: chat.id,
@@ -150,8 +204,11 @@ export async function POST(
       aspectRatio: input.aspectRatio ?? model.defaultAspectRatio,
       quality: input.quality,
       background: input.background,
+      seed: input.seed,
+      transparentBackground: input.transparentBackground,
     },
-    refs,
+    refs: input.refs,
+    parentMessageId: input.parentMessageId,
   });
 
   let upstream: { mime: string; bytes: Buffer }[] = [];
