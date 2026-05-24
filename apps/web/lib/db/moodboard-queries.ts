@@ -6,7 +6,7 @@
  */
 
 import 'server-only';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
 import { moodboards, type Moodboard } from './schema';
 import type { RefEntry } from '@/lib/studio/refs-type';
@@ -125,32 +125,23 @@ export async function softDeleteMoodboard(
  * 首次写入 cover_asset_id；已有 cover 时无 op。返回 true=写入成功，false=已有 cover。
  * 用于 generate route 在成功生成后异步回写 Moodboard 封面。
  *
- * Uses raw SQL with WHERE cover_asset_id IS NULL to guarantee first-wins
- * semantics in the face of concurrent generates.
+ * WHERE cover_asset_id IS NULL guarantees first-wins semantics in the face of
+ * concurrent generates — Postgres serializes per-row UPDATEs atomically.
  */
 export async function setCoverIfMissing(
   moodboardId: string,
   assetId: string,
 ): Promise<boolean> {
-  const result = await db.execute(sql`
-    UPDATE moodboards
-    SET cover_asset_id = ${assetId}, updated_at = NOW()
-    WHERE id = ${moodboardId}
-      AND cover_asset_id IS NULL
-      AND deleted_at IS NULL
-    RETURNING id
-  `);
-  // postgres-js driver returns array-like result with `.count` or `.length`;
-  // drizzle's execute wraps it. Probe both shapes for safety.
-  const obj = result as unknown as {
-    rows?: unknown[];
-    rowCount?: number;
-    count?: number;
-    length?: number;
-  };
-  if (typeof obj.rowCount === 'number') return obj.rowCount > 0;
-  if (typeof obj.count === 'number') return obj.count > 0;
-  if (Array.isArray(obj.rows)) return obj.rows.length > 0;
-  if (typeof obj.length === 'number') return obj.length > 0;
-  return false;
+  const rows = await db
+    .update(moodboards)
+    .set({ coverAssetId: assetId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(moodboards.id, moodboardId),
+        isNull(moodboards.coverAssetId),
+        isNull(moodboards.deletedAt),
+      ),
+    )
+    .returning({ id: moodboards.id });
+  return rows.length > 0;
 }

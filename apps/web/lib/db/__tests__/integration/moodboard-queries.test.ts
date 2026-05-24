@@ -122,8 +122,8 @@ test('softDeleteMoodboard 设 deleted_at', async () => {
   });
   const ok = await mb.softDeleteMoodboard(m.id, userId);
   assert.equal(ok, true);
-  const after = await mb.getMoodboardById(m.id, userId);
-  assert.equal(after, null);
+  const reread = await mb.getMoodboardById(m.id, userId);
+  assert.equal(reread, null);
 });
 
 test('setCoverIfMissing 首次写入', async () => {
@@ -175,6 +175,22 @@ test('setCoverIfMissing 已有 cover 时不覆盖', async () => {
   await mb.setCoverIfMissing(m.id, a1!.id);
   const r2 = await mb.setCoverIfMissing(m.id, a2!.id);
   assert.equal(r2, false);
+});
+
+test('setCoverIfMissing 并发调用只第一个成功', async () => {
+  const [a1] = await db.insert(schema.assets).values({
+    workspaceId, type: 'generated' as const, storageKey: `tmp-cover-${Date.now()}-c.png`, mime: 'image/png',
+  }).returning();
+  const [a2] = await db.insert(schema.assets).values({
+    workspaceId, type: 'generated' as const, storageKey: `tmp-cover-${Date.now()}-d.png`, mime: 'image/png',
+  }).returning();
+  const m = await mb.createMoodboard({ workspaceId, userId, title: 'cover-race', promptTemplate: 'x' });
+  const [r1, r2] = await Promise.all([
+    mb.setCoverIfMissing(m.id, a1!.id),
+    mb.setCoverIfMissing(m.id, a2!.id),
+  ]);
+  // 恰好一个 true 一个 false
+  assert.equal(r1 !== r2, true, 'one must succeed and the other must no-op');
 });
 
 after(async () => {
