@@ -10,11 +10,11 @@
  *     与 spec §6.5 字面"403"略有偏离；此处用 404 是更严的隐藏语义，等效阻断访问。
  */
 import { NextResponse } from 'next/server';
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/lib/db/drizzle';
 import { assets } from '@/lib/db/schema';
-import { getUser } from '@/lib/db/queries';
+import { getUser, getWorkspaceForUser } from '@/lib/db/queries';
 import {
   getMoodboardById,
   softDeleteMoodboard,
@@ -66,8 +66,16 @@ export async function GET(_req: Request, { params }: RouteCtx) {
     ...refAssetIds,
     ...(mb.coverAssetId ? [mb.coverAssetId] : []),
   ];
-  const assetRows = allIds.length
-    ? await db.select().from(assets).where(inArray(assets.id, allIds))
+  // Defense in depth: scope the asset lookup to the current workspace, so
+  // even if a foreign asset_id somehow ended up in refs/coverAssetId
+  // historically, it resolves to a null publicUrl (added to warnings as
+  // skippedRef:<id>) rather than leaking a foreign asset's URL.
+  const ws = await getWorkspaceForUser();
+  const assetRows = allIds.length && ws
+    ? await db
+        .select()
+        .from(assets)
+        .where(and(inArray(assets.id, allIds), eq(assets.workspaceId, ws.id)))
     : [];
   const byId = new Map(assetRows.map((a) => [a.id, a]));
   const storage = getStorage();
@@ -112,6 +120,25 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
       { error: 'invalid_input', details: parsed.error.flatten() },
       { status: 400 },
     );
+  }
+  // Validate any ref asset_ids belong to the current workspace — same
+  // cross-workspace guard as POST.
+  if (parsed.data.refs?.length) {
+    const ws = await getWorkspaceForUser();
+    if (!ws) {
+      return NextResponse.json({ error: 'no_workspace' }, { status: 400 });
+    }
+    const refIds = parsed.data.refs.map((r) => r.asset_id);
+    const ownedAssets = await db
+      .select({ id: assets.id })
+      .from(assets)
+      .where(and(inArray(assets.id, refIds), eq(assets.workspaceId, ws.id)));
+    if (ownedAssets.length !== refIds.length) {
+      return NextResponse.json(
+        { error: 'refs_not_in_workspace' },
+        { status: 400 },
+      );
+    }
   }
   const updated = await updateMoodboard(id, user.id, parsed.data);
   if (!updated) {

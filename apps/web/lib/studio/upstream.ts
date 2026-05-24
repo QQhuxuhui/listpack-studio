@@ -68,6 +68,14 @@ export interface GenerateInput {
   aspectRatio?: string;
   quality?: 'low' | 'medium' | 'high' | 'auto';
   background?: 'transparent' | 'opaque' | 'auto';
+  /** Deterministic-seed for upstreams that support it (e.g. gpt-image-*). */
+  seed?: number;
+  /**
+   * UI-friendly flag. When true, forwarded to the images endpoint as
+   * `background='transparent'`, overriding any explicit `background` value.
+   * Capability-gated upstream; ignored by chat models.
+   */
+  transparentBackground?: boolean;
   inputImages?: UpstreamInputImage[];
   /**
    * Optional conversation history (time-ascending). Only used by chat-endpoint
@@ -170,6 +178,12 @@ async function generateViaImages(
     ? `${baseUrl()}/images/edits`
     : `${baseUrl()}/images/generations`;
 
+  // `transparentBackground=true` is a UI-friendly alias that takes precedence
+  // over the explicit `background` value.
+  const effectiveBackground = input.transparentBackground
+    ? 'transparent'
+    : input.background;
+
   let res: Response;
   if (hasInputs) {
     const fd = new FormData();
@@ -179,7 +193,8 @@ async function generateViaImages(
     fd.append('size', size);
     fd.append('response_format', 'b64_json');
     if (input.quality) fd.append('quality', input.quality);
-    if (input.background) fd.append('background', input.background);
+    if (effectiveBackground) fd.append('background', effectiveBackground);
+    if (input.seed !== undefined) fd.append('seed', String(input.seed));
     for (const img of input.inputImages!) {
       const blob = new Blob([new Uint8Array(img.bytes)], { type: img.mime });
       fd.append('image', blob, `ref.${extForMime(img.mime)}`);
@@ -202,9 +217,10 @@ async function generateViaImages(
         n: input.n,
         size,
         quality: input.quality ?? 'high',
-        background: input.background ?? 'auto',
+        background: effectiveBackground ?? 'auto',
         response_format: 'b64_json',
         output_format: 'png',
+        ...(input.seed !== undefined ? { seed: input.seed } : {}),
       }),
     });
   }

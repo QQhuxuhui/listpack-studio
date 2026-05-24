@@ -267,6 +267,12 @@ export async function POST(
   // Record user prompt + create pending assistant message. Per-ref roles flow
   // straight through to the jsonb column. parentMessageId enables reroll
   // threading.
+  //
+  // Asymmetry: user message stores `input.refs` (what the user actually
+  // attached — intent for the message bubble UI), assistant message stores
+  // `effectiveRefs` (what upstream actually saw, after autoChain appended a
+  // history ref and/or soft-skip dropped missing assets — source of truth for
+  // what generated this image, so reroll/remix reconstructs the real inputs).
   const userMsg = await recordUserMessage({
     chatId: chat.id,
     text: input.prompt,
@@ -285,7 +291,7 @@ export async function POST(
       seed: input.seed,
       transparentBackground: input.transparentBackground,
     },
-    refs: input.refs,
+    refs: effectiveRefs,
     parentMessageId: input.parentMessageId,
   });
 
@@ -299,6 +305,8 @@ export async function POST(
       aspectRatio: input.aspectRatio,
       quality: input.quality,
       background: input.background,
+      ...(input.seed !== undefined ? { seed: input.seed } : {}),
+      ...(input.transparentBackground ? { transparentBackground: true } : {}),
       inputImages: refInputs,
       ...(historyMessages && historyMessages.length > 0
         ? { historyMessages }

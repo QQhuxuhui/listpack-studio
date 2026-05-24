@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { X, Plus, Trash2 } from 'lucide-react';
 import type { MoodboardSummary, MoodboardDetail, PresetState, RefWithUrl } from './types';
@@ -31,6 +31,20 @@ export function MoodboardDrawer({ open, onClose, currentComposerSnapshot, onAppl
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [includeState, setIncludeState] = useState(true);
+  const [promptTemplate, setPromptTemplate] = useState('');
+
+  // Pre-fill promptTemplate from the current Composer snapshot whenever
+  // the create form opens or the includeState toggle flips on. The user
+  // can still edit / override the field before submitting.
+  useEffect(() => {
+    if (!creating) return;
+    if (includeState) {
+      setPromptTemplate(currentComposerSnapshot().prompt);
+    }
+    // intentionally not depending on currentComposerSnapshot — it's a stable
+    // ref to the parent's snapshot fn; we only want to refill on toggle/open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creating, includeState]);
 
   if (!open) return null;
 
@@ -72,10 +86,11 @@ export function MoodboardDrawer({ open, onClose, currentComposerSnapshot, onAppl
   async function createSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
+    if (!promptTemplate.trim()) return;
     const snap = includeState ? currentComposerSnapshot() : null;
     const body: Record<string, unknown> = {
       title: title.trim(),
-      promptTemplate: snap?.prompt ?? '',
+      promptTemplate: promptTemplate.trim(),
     };
     if (snap?.model) body.model = snap.model;
     if (snap?.size) body.size = snap.size;
@@ -95,6 +110,7 @@ export function MoodboardDrawer({ open, onClose, currentComposerSnapshot, onAppl
     setCreating(false);
     setTitle('');
     setNotes('');
+    setPromptTemplate('');
     mutate('/api/studio/moodboards');
   }
 
@@ -130,6 +146,14 @@ export function MoodboardDrawer({ open, onClose, currentComposerSnapshot, onAppl
             />
             <textarea
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              placeholder="Prompt 模板（必填）"
+              rows={3}
+              required
+              value={promptTemplate}
+              onChange={(e) => setPromptTemplate(e.target.value)}
+            />
+            <textarea
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
               placeholder="备注（可选）"
               rows={2}
               value={notes}
@@ -150,6 +174,7 @@ export function MoodboardDrawer({ open, onClose, currentComposerSnapshot, onAppl
                   setCreating(false);
                   setTitle('');
                   setNotes('');
+                  setPromptTemplate('');
                 }}
                 className="text-xs px-2 py-1 text-gray-600"
               >

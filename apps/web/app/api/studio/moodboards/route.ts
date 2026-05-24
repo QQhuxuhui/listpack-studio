@@ -4,7 +4,7 @@
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { assets } from '@/lib/db/schema';
 import { getStorage } from '@/lib/storage';
@@ -78,6 +78,21 @@ export async function POST(req: Request) {
       { error: 'invalid_input', details: parsed.error.flatten() },
       { status: 400 },
     );
+  }
+  // Validate any ref asset_ids belong to the current workspace — prevents
+  // cross-workspace asset references being stored in moodboard.refs.
+  if (parsed.data.refs?.length) {
+    const refIds = parsed.data.refs.map((r) => r.asset_id);
+    const ownedAssets = await db
+      .select({ id: assets.id })
+      .from(assets)
+      .where(and(inArray(assets.id, refIds), eq(assets.workspaceId, ws.id)));
+    if (ownedAssets.length !== refIds.length) {
+      return NextResponse.json(
+        { error: 'refs_not_in_workspace' },
+        { status: 400 },
+      );
+    }
   }
   const created = await createMoodboard({
     workspaceId: ws.id,
