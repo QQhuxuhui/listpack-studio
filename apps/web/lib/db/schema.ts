@@ -28,6 +28,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import { uuidv7 } from 'uuidv7';
 
+import type { RefEntry } from '@/lib/studio/refs-type';
+
 // ─── ENUMS ────────────────────────────────────────────────────────────
 
 export const planEnum = pgEnum('plan', [
@@ -273,9 +275,7 @@ export const imageMessages = pgTable(
     /** Free-form params: { n, size, aspectRatio, quality, background, ... } */
     params: jsonb('params'),
     /** Reference assets with semantic role slots. */
-    refs: jsonb('refs').$type<
-      Array<{ asset_id: string; role: 'content' | 'style' | 'character' }>
-    >(),
+    refs: jsonb('refs').$type<RefEntry[]>(),
     outputAssetIds: uuid('output_asset_ids').array(),
     status: imageMessageStatusEnum('status').notNull().default('pending'),
     error: jsonb('error'),
@@ -312,9 +312,7 @@ export const moodboards = pgTable(
     model: varchar('model', { length: 100 }),
     size: varchar('size', { length: 20 }),
     aspectRatio: varchar('aspect_ratio', { length: 10 }),
-    refs: jsonb('refs').$type<
-      Array<{ asset_id: string; role: 'content' | 'style' | 'character' }>
-    >(),
+    refs: jsonb('refs').$type<RefEntry[]>(),
     coverAssetId: uuid('cover_asset_id').references(() => assets.id, {
       onDelete: 'set null',
     }),
