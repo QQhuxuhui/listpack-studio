@@ -49,6 +49,8 @@ export async function GET(req: Request) {
   });
   const hasMore = items.length > limit;
   const page = items.slice(0, limit);
+  // TODO(phase2): composite cursor (created_at, asset_id) to avoid skipping
+  // tie-grouped rows at page boundary. Acceptable risk at 24/page Phase 1 scale.
   const nextCursor = hasMore
     ? page[page.length - 1]!.createdAt.toISOString()
     : null;

@@ -305,6 +305,11 @@ export async function listLibraryAssets(input: {
     ? sql`AND a.created_at < ${input.before.toISOString()}`
     : sql``;
 
+  // Assistant messages don't carry the prompt text — only user messages do
+  // (recordUserMessage populates `text`, createPendingAssistantMessage leaves
+  // it null). Use a LATERAL join to pull the most recent user message at-or-
+  // before the assistant message's created_at within the same chat, so
+  // promptExcerpt reflects what the user actually typed.
   const rows = await db.execute(sql`
     SELECT
       a.id AS asset_id,
@@ -314,12 +319,21 @@ export async function listLibraryAssets(input: {
       a.created_at,
       m.model,
       m.id AS message_id,
-      COALESCE(m.text, '') AS prompt_text,
       c.id AS chat_id,
-      c.title AS chat_title
+      c.title AS chat_title,
+      COALESCE(up.text, '') AS prompt_text
     FROM assets a
     JOIN image_messages m ON a.id = ANY(m.output_asset_ids)
     JOIN image_chats c ON m.chat_id = c.id
+    LEFT JOIN LATERAL (
+      SELECT u.text
+      FROM image_messages u
+      WHERE u.chat_id = m.chat_id
+        AND u.role = 'user'
+        AND u.created_at <= m.created_at
+      ORDER BY u.created_at DESC
+      LIMIT 1
+    ) up ON true
     WHERE c.workspace_id = ${input.workspaceId}
       AND c.deleted_at IS NULL
       AND m.role = 'assistant'
