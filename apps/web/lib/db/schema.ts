@@ -272,15 +272,63 @@ export const imageMessages = pgTable(
     model: varchar('model', { length: 100 }),
     /** Free-form params: { n, size, aspectRatio, quality, background, ... } */
     params: jsonb('params'),
-    refAssetIds: uuid('ref_asset_ids').array(),
+    /** Reference assets with semantic role slots. */
+    refs: jsonb('refs').$type<
+      Array<{ asset_id: string; role: 'content' | 'style' | 'character' }>
+    >(),
     outputAssetIds: uuid('output_asset_ids').array(),
     status: imageMessageStatusEnum('status').notNull().default('pending'),
     error: jsonb('error'),
+    /** Self-reference for Reroll/Variation/Remix lineage. FK added via raw SQL. */
+    parentMessageId: uuid('parent_message_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
   },
   (t) => ({
-    byChat: index('idx_image_messages_chat_created').on(t.chatId, t.createdAt),
+    idxChatCreated: index('idx_image_messages_chat_created').on(
+      t.chatId,
+      t.createdAt,
+    ),
+    idxParent: index('idx_image_messages_parent')
+      .on(t.parentMessageId)
+      .where(sql`${t.parentMessageId} IS NOT NULL`),
+  }),
+);
+
+// ─── MOODBOARDS (saved generation presets / prompt templates) ───────
+
+export const moodboards = pgTable(
+  'moodboards',
+  {
+    id: uuid('id').primaryKey().$defaultFn(newId),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 200 }).notNull(),
+    promptTemplate: text('prompt_template').notNull(),
+    model: varchar('model', { length: 100 }),
+    size: varchar('size', { length: 20 }),
+    aspectRatio: varchar('aspect_ratio', { length: 10 }),
+    refs: jsonb('refs').$type<
+      Array<{ asset_id: string; role: 'content' | 'style' | 'character' }>
+    >(),
+    coverAssetId: uuid('cover_asset_id').references(() => assets.id, {
+      onDelete: 'set null',
+    }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (t) => ({
+    idxUserActive: index('idx_moodboards_user_active').on(
+      t.userId,
+      t.deletedAt,
+      t.updatedAt,
+    ),
   }),
 );
 
@@ -389,6 +437,23 @@ export const imageMessagesRelations = relations(imageMessages, ({ one }) => ({
     fields: [imageMessages.chatId],
     references: [imageChats.id],
   }),
+  parent: one(imageMessages, {
+    fields: [imageMessages.parentMessageId],
+    references: [imageMessages.id],
+    relationName: 'message_lineage',
+  }),
+}));
+
+export const moodboardsRelations = relations(moodboards, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [moodboards.workspaceId],
+    references: [workspaces.id],
+  }),
+  user: one(users, { fields: [moodboards.userId], references: [users.id] }),
+  coverAsset: one(assets, {
+    fields: [moodboards.coverAssetId],
+    references: [assets.id],
+  }),
 }));
 
 export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
@@ -435,6 +500,8 @@ export type ImageMessageStatus = (typeof imageMessageStatusEnum.enumValues)[numb
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
+export type Moodboard = typeof moodboards.$inferSelect;
+export type NewMoodboard = typeof moodboards.$inferInsert;
 
 export type WorkspaceWithMembers = Workspace & {
   members: (Member & {
