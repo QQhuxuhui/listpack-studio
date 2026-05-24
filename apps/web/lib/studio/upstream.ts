@@ -280,16 +280,19 @@ async function generateViaChat(
   // one chat-completions message; text-only or image-only — text wins when both
   // are present (Phase 1: assistant images aren't round-tripped to the gateway
   // because sparkcode's behavior on inline-image continuations isn't pinned down
-  // yet).
-  const baseMessages = (input.historyMessages ?? []).map((m) => ({
-    role: m.role,
-    content: m.text
-      ? [{ type: 'text' as const, text: m.text }]
-      : (m.imageDataUrls ?? []).map((u) => ({
-          type: 'image_url' as const,
-          image_url: { url: u },
-        })),
-  }));
+  // yet). Filter out empty messages first — an entry with neither text nor
+  // image_url would produce `content: []`, which sparkcode rejects.
+  const baseMessages = (input.historyMessages ?? [])
+    .filter((m) => m.text || (m.imageDataUrls && m.imageDataUrls.length > 0))
+    .map((m) => ({
+      role: m.role,
+      content: m.text
+        ? [{ type: 'text' as const, text: m.text }]
+        : (m.imageDataUrls ?? []).map((u) => ({
+            type: 'image_url' as const,
+            image_url: { url: u },
+          })),
+    }));
 
   // The gateway returns 1 image per call; loop to honour n.
   const out: UpstreamImage[] = [];

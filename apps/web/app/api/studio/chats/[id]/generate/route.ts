@@ -2,16 +2,21 @@
  * POST /api/studio/chats/[id]/generate
  *
  * Lifecycle:
- *   1. validate chat ownership + model + ref assets
- *   2. reserve quota (atomic UPDATE … WHERE)
- *   3. insert user message (prompt + ref ids)
- *   4. insert assistant message in 'generating' status
- *   5. fetch ref-asset bytes from storage (i2i path)
- *   6. call upstream gateway
- *   7. on success: write each generated image to storage + assets;
+ *   1. validate chat ownership + model + ref assets + parentMessageId scope
+ *   2. resolve conversational mode (multiTurn history vs auto-chain ref vs 400)
+ *   3. reserve quota (atomic UPDATE … WHERE)
+ *   4. insert user message (prompt + refs + parentMessageId)
+ *   5. insert assistant message in 'pending' status
+ *   6. fetch ref-asset bytes from storage (i2i path)
+ *   7. call upstream gateway
+ *   8. on success: write each generated image to storage + assets;
  *      update assistant.outputAssetIds + status=completed;
- *      record usage + activity
- *   8. on failure: refund quota; mark assistant status=failed
+ *      record usage + activity;
+ *      fire-and-forget moodboard cover hint if moodboardId supplied
+ *   9. on failure: refund quota; mark assistant status=failed
+ *
+ * Soft-degrading behavior surfaces via top-level `warnings: string[]`
+ * (e.g. `skippedRefs:N`, `autoAppendedRefFromHistory`).
  *
  * Returns the assistant message with publicUrl for each output asset.
  */
@@ -72,12 +77,10 @@ const generateSchema = z.object({
   quality: z.enum(['low', 'medium', 'high', 'auto']).optional(),
   background: z.enum(['transparent', 'opaque', 'auto']).optional(),
   refs: refsSchema,
-  // Schema-only in Task 6 — behavior wiring lands in Task 7.
   conversational: z.boolean().optional(),
   parentMessageId: z.string().uuid().optional(),
   seed: z.number().int().optional(),
   transparentBackground: z.boolean().optional(),
-  // Schema-only in Task 6 — cover write-back lands in Task 7.
   moodboardId: z.string().uuid().optional(),
 });
 
@@ -248,6 +251,7 @@ export async function POST(
     ).filter((x): x is UpstreamInputImage => x !== null);
   }
   if (skippedRefsCount > 0) {
+    // Format: <kind>[:detail] — no spaces, FE uses .includes() for kind.
     warnings.push(`skippedRefs:${skippedRefsCount}`);
   }
 
@@ -262,7 +266,7 @@ export async function POST(
 
   // Record user prompt + create pending assistant message. Per-ref roles flow
   // straight through to the jsonb column. parentMessageId enables reroll
-  // threading (Task 7 will wire the conversational branch).
+  // threading.
   const userMsg = await recordUserMessage({
     chatId: chat.id,
     text: input.prompt,
@@ -351,18 +355,25 @@ export async function POST(
     model: model.id,
   });
 
-  // Moodboard cover hint — first-wins. We verify ownership here (silently
-  // ignore foreign moodboards so callers can't probe for ID existence),
-  // then fire-and-forget setCoverIfMissing. The WHERE cover_asset_id IS NULL
-  // inside setCoverIfMissing handles the concurrency race.
+  // Moodboard cover hint — first-wins. Quota is consumed and outputs are
+  // persisted at this point, so the ownership lookup AND the cover write
+  // both run inside one fire-and-forget try/catch — neither a DB hiccup on
+  // getMoodboardById nor on setCoverIfMissing should 500 a successful gen.
+  // Foreign moodboards silently no-op (no existence leak). The
+  // WHERE cover_asset_id IS NULL inside setCoverIfMissing handles concurrency.
   if (input.moodboardId && outputAssets.length > 0) {
-    const firstAsset = outputAssets[0]!;
-    const mb = await getMoodboardById(input.moodboardId, user.id);
-    if (mb) {
-      void setCoverIfMissing(input.moodboardId, firstAsset.id).catch((e) => {
+    const moodboardId = input.moodboardId;
+    const firstAssetId = outputAssets[0]!.id;
+    void (async () => {
+      try {
+        const mb = await getMoodboardById(moodboardId, user.id);
+        if (mb) {
+          await setCoverIfMissing(moodboardId, firstAssetId);
+        }
+      } catch (e) {
         console.warn('[generate] moodboard cover write failed:', e);
-      });
-    }
+      }
+    })();
   }
 
   return NextResponse.json({
