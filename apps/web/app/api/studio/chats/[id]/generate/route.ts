@@ -24,12 +24,12 @@ import { db } from '@/lib/db/drizzle';
 import { assets } from '@/lib/db/schema';
 import {
   completeAssistantMessage,
+  createPendingAssistantMessage,
   failAssistantMessage,
   getAssetsByIdsForWorkspace,
   getChatForWorkspace,
-  insertAssistantMessage,
-  insertUserMessage,
   recordUsage,
+  recordUserMessage,
   refundQuota,
   reserveQuota,
   touchChat,
@@ -130,12 +130,18 @@ export async function POST(
   }
 
   // Record user prompt + create pending assistant message.
-  const userMsg = await insertUserMessage({
+  // NOTE: refs default to role='content'; Task 6 will replace this with the
+  // proper per-slot payload from the new request schema.
+  const refs = input.refAssetIds?.map((id) => ({
+    asset_id: id,
+    role: 'content' as const,
+  }));
+  const userMsg = await recordUserMessage({
     chatId: chat.id,
     text: input.prompt,
-    refAssetIds: input.refAssetIds,
+    refs,
   });
-  const assistantMsg = await insertAssistantMessage({
+  const assistantMsg = await createPendingAssistantMessage({
     chatId: chat.id,
     model: model.id,
     params: {
@@ -145,6 +151,7 @@ export async function POST(
       quality: input.quality,
       background: input.background,
     },
+    refs,
   });
 
   let upstream: { mime: string; bytes: Buffer }[] = [];

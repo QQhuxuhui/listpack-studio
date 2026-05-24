@@ -22,6 +22,7 @@ import {
   type ImageChat,
   type ImageMessage,
 } from './schema';
+import type { RefEntry } from '@/lib/studio/refs-type';
 
 // ─── CHATS ───────────────────────────────────────────────────────────
 
@@ -107,10 +108,11 @@ export async function listMessagesForChat(
     .orderBy(imageMessages.createdAt);
 }
 
-export async function insertUserMessage(input: {
+export async function recordUserMessage(input: {
   chatId: string;
   text: string;
-  refAssetIds?: string[];
+  refs?: RefEntry[];
+  parentMessageId?: string;
 }): Promise<ImageMessage> {
   const [row] = await db
     .insert(imageMessages)
@@ -118,19 +120,22 @@ export async function insertUserMessage(input: {
       chatId: input.chatId,
       role: 'user',
       text: input.text,
-      refAssetIds: input.refAssetIds ?? null,
+      refs: input.refs ?? null,
+      parentMessageId: input.parentMessageId ?? null,
       status: 'completed',
       completedAt: new Date(),
     })
     .returning();
-  if (!row) throw new Error('insertUserMessage returned empty row');
+  if (!row) throw new Error('recordUserMessage returned empty row');
   return row;
 }
 
-export async function insertAssistantMessage(input: {
+export async function createPendingAssistantMessage(input: {
   chatId: string;
   model: string;
   params: Record<string, unknown>;
+  refs?: RefEntry[];
+  parentMessageId?: string;
 }): Promise<ImageMessage> {
   const [row] = await db
     .insert(imageMessages)
@@ -139,10 +144,12 @@ export async function insertAssistantMessage(input: {
       role: 'assistant',
       model: input.model,
       params: input.params,
+      refs: input.refs ?? null,
+      parentMessageId: input.parentMessageId ?? null,
       status: 'generating',
     })
     .returning();
-  if (!row) throw new Error('insertAssistantMessage returned empty row');
+  if (!row) throw new Error('createPendingAssistantMessage returned empty row');
   return row;
 }
 
