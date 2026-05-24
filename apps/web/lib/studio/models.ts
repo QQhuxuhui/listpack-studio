@@ -115,6 +115,11 @@ export function modelSupports(modelId: string, cap: keyof ModelCapabilities): bo
   return m ? m.capabilities[cap] : false;
 }
 
+/**
+ * 返回 MODELS 字典里第一个支持给定 cap 的模型（按 MODELS 字面量声明顺序）。
+ * 用于 UI tooltip 的"请切换到 X"提示——MODELS 字典声明顺序即"推荐优先级"。
+ * 若要改"推荐"语义（如按 maxN 排），改 MODELS 声明顺序而非此函数。
+ */
 export function firstModelSupporting(cap: keyof ModelCapabilities): StudioModel | null {
   return listModels().find((m) => m.capabilities[cap]) ?? null;
 }
