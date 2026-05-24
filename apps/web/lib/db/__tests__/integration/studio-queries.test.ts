@@ -4,37 +4,18 @@
  * exercises the helpers, and cleans up at the end. Email/slug are time-
  * stamped so reruns don't collide on the unique indexes.
  */
+import './_setup'; // must be first — patches `server-only` resolution
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-// `studio-queries.ts` (and `drizzle.ts`) import `server-only`, which
-// throws when loaded outside Next's bundler. Patch CJS resolution to
-// route that specifier to an empty stub BEFORE the modules-under-test
-// load. Static imports of those modules below are intentionally absent;
-// `before()` loads them dynamically after this patch is installed.
-const _require = createRequire(import.meta.url);
-type ModuleStatic = typeof import('module') & {
-  _resolveFilename: (req: string, ...rest: unknown[]) => string;
-};
-const _Module = _require('module') as ModuleStatic;
-const _origResolve = _Module._resolveFilename.bind(_Module);
-_Module._resolveFilename = function patched(
-  req: string,
-  ...rest: unknown[]
-): string {
-  if (req === 'server-only') {
-    return _require.resolve('./_server-only-stub.cjs');
-  }
-  return _origResolve(req, ...rest);
-};
-
-// Lazily-loaded modules — see before() block.
-type Db = typeof import('../drizzle')['db'];
-type Client = typeof import('../drizzle')['client'];
-type Schema = typeof import('../schema');
+// Lazily-loaded modules — see before() block. Static imports of
+// server-only modules are intentionally absent so the resolver patch
+// from ./_setup runs before they load.
+type Db = typeof import('../../drizzle')['db'];
+type Client = typeof import('../../drizzle')['client'];
+type Schema = typeof import('../../schema');
 type Eq = typeof import('drizzle-orm')['eq'];
-type Queries = typeof import('../studio-queries');
+type Queries = typeof import('../../studio-queries');
 
 let db: Db;
 let client: Client;
@@ -42,15 +23,15 @@ let schema: Schema;
 let eq: Eq;
 let queries: Queries;
 
-let tmpUserId: string;
-let tmpWorkspaceId: string;
-let tmpChatId: string;
+let tmpUserId: string | undefined;
+let tmpWorkspaceId: string | undefined;
+let tmpChatId: string | undefined;
 
 before(async () => {
-  ({ db, client } = await import('../drizzle'));
-  schema = await import('../schema');
+  ({ db, client } = await import('../../drizzle'));
+  schema = await import('../../schema');
   ({ eq } = await import('drizzle-orm'));
-  queries = await import('../studio-queries');
+  queries = await import('../../studio-queries');
 
   const stamp = Date.now();
   const [u] = await db
@@ -86,7 +67,7 @@ before(async () => {
 
 test('createPendingAssistantMessage 写入 refs jsonb', async () => {
   const msg = await queries.createPendingAssistantMessage({
-    chatId: tmpChatId,
+    chatId: tmpChatId!,
     model: 'gpt-image-2',
     params: { n: 1 },
     refs: [
@@ -97,18 +78,19 @@ test('createPendingAssistantMessage 写入 refs jsonb', async () => {
   assert.equal(msg.refs?.length, 2);
   assert.equal(msg.refs?.[0]?.role, 'content');
   assert.equal(msg.refs?.[1]?.role, 'style');
-  // Existing behavior preserved: insert lands in 'generating' status.
-  assert.equal(msg.status, 'generating');
+  // Name says "Pending" — status should match. UI handles both
+  // 'pending' and 'generating' for the spinner, so this is safe.
+  assert.equal(msg.status, 'pending');
 });
 
 test('recordUserMessage 支持 parentMessageId', async () => {
   const parent = await queries.createPendingAssistantMessage({
-    chatId: tmpChatId,
+    chatId: tmpChatId!,
     model: 'gpt-image-2',
     params: {},
   });
   const child = await queries.recordUserMessage({
-    chatId: tmpChatId,
+    chatId: tmpChatId!,
     text: 'reroll test',
     parentMessageId: parent.id,
   });
@@ -117,23 +99,35 @@ test('recordUserMessage 支持 parentMessageId', async () => {
   assert.equal(child.role, 'user');
 });
 
-test('cleanup', async () => {
-  // image_messages cascade via image_chats, but delete explicitly to avoid
-  // FK surprises and keep the cleanup symmetric with setup.
-  await db
-    .delete(schema.imageMessages)
-    .where(eq(schema.imageMessages.chatId, tmpChatId));
-  await db.delete(schema.imageChats).where(eq(schema.imageChats.id, tmpChatId));
-  await db
-    .delete(schema.members)
-    .where(eq(schema.members.workspaceId, tmpWorkspaceId));
-  await db
-    .delete(schema.workspaces)
-    .where(eq(schema.workspaces.id, tmpWorkspaceId));
-  await db.delete(schema.users).where(eq(schema.users.id, tmpUserId));
-});
-
 after(async () => {
+  // Tear down regardless of prior test failure so the dev DB doesn't
+  // accumulate orphan rows. Wrapped in try/catch so a FK surprise still
+  // lets us close the pool below.
+  try {
+    if (tmpChatId) {
+      // image_messages cascade via image_chats, but delete explicitly
+      // to keep cleanup symmetric with setup.
+      await db
+        .delete(schema.imageMessages)
+        .where(eq(schema.imageMessages.chatId, tmpChatId));
+      await db
+        .delete(schema.imageChats)
+        .where(eq(schema.imageChats.id, tmpChatId));
+    }
+    if (tmpWorkspaceId) {
+      await db
+        .delete(schema.members)
+        .where(eq(schema.members.workspaceId, tmpWorkspaceId));
+      await db
+        .delete(schema.workspaces)
+        .where(eq(schema.workspaces.id, tmpWorkspaceId));
+    }
+    if (tmpUserId) {
+      await db.delete(schema.users).where(eq(schema.users.id, tmpUserId));
+    }
+  } catch (e) {
+    console.error('integration cleanup failed:', e);
+  }
   // Close the postgres pool so the test process exits cleanly. Without
   // this the idle TCP connections keep the Node event loop alive and the
   // test runner hangs past the final summary.

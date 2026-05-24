@@ -146,7 +146,7 @@ export async function createPendingAssistantMessage(input: {
       params: input.params,
       refs: input.refs ?? null,
       parentMessageId: input.parentMessageId ?? null,
-      status: 'generating',
+      status: 'pending',
     })
     .returning();
   if (!row) throw new Error('createPendingAssistantMessage returned empty row');
