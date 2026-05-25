@@ -66,6 +66,8 @@ export interface GenerateInput {
   size?: string;
   /** Gemini-style aspect ratio, e.g. '1:1'. Optional for images models. */
   aspectRatio?: string;
+  /** Gemini chat-shape resolution: '1K' | '2K' | '4K'. Maps to imageConfig.imageSize. */
+  imageSize?: string;
   quality?: 'low' | 'medium' | 'high' | 'auto';
   background?: 'transparent' | 'opaque' | 'auto';
   /** Deterministic-seed for upstreams that support it (e.g. gpt-image-*). */
@@ -320,9 +322,15 @@ async function generateViaChat(
       stream: false,
     };
     const aspect = input.aspectRatio ?? model.defaultAspectRatio;
-    if (aspect) {
+    const size = input.imageSize ?? '1K';
+    if (aspect || size) {
+      // sparkcode 的 Gemini 适配同时识别 camelCase 与 snake_case 键名；两种
+      // 别名一起发，避免上游某次升级换写法导致分辨率回落到默认 ~720p。
       body.extra_body = {
-        generationConfig: { imageConfig: { aspectRatio: aspect } },
+        generationConfig: {
+          imageConfig: { aspectRatio: aspect, imageSize: size },
+          image_config: { aspect_ratio: aspect, image_size: size },
+        },
       };
     }
 

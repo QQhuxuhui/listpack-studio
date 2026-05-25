@@ -25,6 +25,7 @@ export interface ComposerHandle {
     model: string;
     size: string;
     aspectRatio: string;
+    imageSize: string;
     refs: RefWithUrl[];
   };
 }
@@ -38,6 +39,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
   const [n, setN] = useState(1);
   const [size, setSize] = useState('1024x1024');
   const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
   const [refs, setRefs] = useState<RefWithUrl[]>([]);
   const [conversational, setConversational] = useState(false);
   const [settings, setSettings] = useState<SettingsState>({
@@ -85,8 +87,8 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
 
   // Expose snapshot for Moodboard "save as" flow (Task 16)
   useImperativeHandle(ref, () => ({
-    getSnapshot: () => ({ prompt: text, model: modelId, size, aspectRatio, refs }),
-  }), [text, modelId, size, aspectRatio, refs]);
+    getSnapshot: () => ({ prompt: text, model: modelId, size, aspectRatio, imageSize, refs }),
+  }), [text, modelId, size, aspectRatio, imageSize, refs]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -117,7 +119,7 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
     try {
       const body: Record<string, unknown> = {
         prompt, model: model.id, n,
-        ...(model.endpoint === 'images' ? { size } : { aspectRatio }),
+        ...(model.endpoint === 'images' ? { size } : { aspectRatio, imageSize }),
         refs: refs.map(({ asset_id, role }) => ({ asset_id, role })),
         ...(conversational ? { conversational: true } : {}),
         ...(moodboardId ? { moodboardId } : {}),
@@ -196,16 +198,26 @@ export const PromptComposer = forwardRef<ComposerHandle, Props>(function PromptC
             </select>
           </label>
         ) : (
-          <label className="flex items-center gap-1 text-gray-600">
-            <span className="text-gray-400">比例</span>
-            <select className="rounded border border-gray-300 px-1.5 py-0.5" value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
-              <option value="1:1">1:1</option>
-              <option value="3:4">3:4</option>
-              <option value="4:3">4:3</option>
-              <option value="9:16">9:16</option>
-              <option value="16:9">16:9</option>
-            </select>
-          </label>
+          <>
+            <label className="flex items-center gap-1 text-gray-600">
+              <span className="text-gray-400">比例</span>
+              <select className="rounded border border-gray-300 px-1.5 py-0.5" value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
+                <option value="1:1">1:1</option>
+                <option value="3:4">3:4</option>
+                <option value="4:3">4:3</option>
+                <option value="9:16">9:16</option>
+                <option value="16:9">16:9</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1 text-gray-600">
+              <span className="text-gray-400">分辨率</span>
+              <select className="rounded border border-gray-300 px-1.5 py-0.5" value={imageSize} onChange={(e) => setImageSize(e.target.value as '1K' | '2K' | '4K')}>
+                <option value="1K">1K</option>
+                <option value="2K">2K</option>
+                <option value="4K">4K</option>
+              </select>
+            </label>
+          </>
         )}
         <button type="button" className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50" onClick={() => setSettingsOpen(true)} title="高级设置">
           <Settings className="h-3.5 w-3.5" />
