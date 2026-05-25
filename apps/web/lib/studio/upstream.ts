@@ -324,12 +324,13 @@ async function generateViaChat(
     const aspect = input.aspectRatio ?? model.defaultAspectRatio;
     const size = input.imageSize ?? '1K';
     if (aspect || size) {
-      // sparkcode 的 Gemini 适配同时识别 camelCase 与 snake_case 键名；两种
-      // 别名一起发，避免上游某次升级换写法导致分辨率回落到默认 ~720p。
+      // 路径 extra_body.google.image_config — sparkcode (new-api) 的 Gemini
+      // relay 在 relay-gemini.go:267 显式校验：外层 wrapper 必须 snake_case
+      // (image_config)，否则报 convert_request_failed。内层字段保持 Google
+      // API 的 camelCase (aspectRatio / imageSize)。
       body.extra_body = {
-        generationConfig: {
-          imageConfig: { aspectRatio: aspect, imageSize: size },
-          image_config: { aspect_ratio: aspect, image_size: size },
+        google: {
+          image_config: { aspectRatio: aspect, imageSize: size },
         },
       };
     }
